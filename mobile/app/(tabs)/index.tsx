@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, FlatList, Pressable, SafeAreaView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Plus, User } from 'lucide-react-native';
+import { Plus, User, Wifi } from 'lucide-react-native';
 import { useThreads } from '@/hooks/use-threads-store';
 import { ThreadListCard } from '@/components/ThreadListCard';
 import { ActionButton } from '@/components/ActionButton';
 import { GradientBackground } from '@/components/GradientBackground';
 import { CustomPrompt } from '@/components/CustomPrompt';
+import { BackendTest } from '@/components/BackendTest';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, fontWeight, spacing } from '@/constants/theme';
 
@@ -16,6 +17,7 @@ export default function HomeScreen() {
     const { threads, setCurrentThreadId, deleteThread } = useThreads();
     const [refreshing, setRefreshing] = useState(false);
     const [showPrompt, setShowPrompt] = useState(false);
+    const [showBackendTest, setShowBackendTest] = useState(false);
 
     const handleThreadPress = (threadId: string) => {
         setCurrentThreadId(threadId);
@@ -77,12 +79,21 @@ export default function HomeScreen() {
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>Pain Tracker</Text>
-                    <Pressable
-                        style={styles.profileButton}
-                        testID="profile-button"
-                    >
-                        <User size={24} color={colors.text} />
-                    </Pressable>
+                    <View style={styles.headerButtons}>
+                        <Pressable
+                            style={styles.headerButton}
+                            onPress={() => setShowBackendTest(true)}
+                            testID="backend-test-button"
+                        >
+                            <Wifi size={20} color={colors.text} />
+                        </Pressable>
+                        <Pressable
+                            style={styles.profileButton}
+                            testID="profile-button"
+                        >
+                            <User size={24} color={colors.text} />
+                        </Pressable>
+                    </View>
                 </View>
 
                 <FlatList
@@ -127,6 +138,13 @@ export default function HomeScreen() {
                     onConfirm={handlePromptConfirm}
                     onCancel={handlePromptCancel}
                 />
+
+                {/* Backend Connection Test Modal */}
+                {showBackendTest && (
+                    <View style={styles.modalOverlay}>
+                        <BackendTest onClose={() => setShowBackendTest(false)} />
+                    </View>
+                )}
             </SafeAreaView>
         </GradientBackground>
     );
@@ -147,6 +165,19 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xxl,
         fontWeight: fontWeight.bold,
         color: colors.text,
+    },
+    headerButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    headerButton: {
+        width: 36,
+        height: 36,
+        borderRadius: borderRadius.full,
+        backgroundColor: colors.card,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     profileButton: {
         width: 40,
@@ -181,5 +212,16 @@ const styles = StyleSheet.create({
     buttonContainer: {
         padding: spacing.lg,
         alignItems: 'center',
+    },
+    modalOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
     },
 });

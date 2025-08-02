@@ -8,6 +8,7 @@ import {
 import { Message } from '@/types/thread';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, spacing } from '@/constants/theme';
+import { ChatInput } from './ChatInput';
 
 interface ChatOverlayProps {
     messages: Message[];
@@ -92,6 +93,12 @@ export const ChatOverlay = ({ messages, visible, onSendMessage }: ChatOverlayPro
                     </>
                 )}
             </ScrollView>
+            
+            {/* Chat Input at the bottom */}
+            <ChatInput 
+                onSendMessage={onSendMessage || (() => {})}
+                placeholder="Describe your pain or ask a question..."
+            />
         </View>
     );
 };
@@ -106,6 +113,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
         justifyContent: 'flex-start',
         pointerEvents: 'box-none', // Allow touches to pass through to camera
+        flexDirection: 'column',
     },
     messagesContainer: {
         flex: 1,
@@ -114,7 +122,7 @@ const styles = StyleSheet.create({
     },
     messagesContent: {
         padding: spacing.md,
-        paddingBottom: 200, // Extra bottom padding to avoid controls
+        paddingBottom: spacing.xl, // Space for input
         paddingTop: spacing.lg, // Extra top padding to avoid top controls
         minHeight: '100%',
         justifyContent: 'flex-start',

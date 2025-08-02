@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     debug: bool = Field(default=False, env="DEBUG")
     secret_key: str = Field(default="dev-secret-key", env="SECRET_KEY")
     allowed_hosts: str = Field(
-        default="localhost,127.0.0.1", 
+        default="localhost,127.0.0.1,*", 
         env="ALLOWED_HOSTS"
     )
     
