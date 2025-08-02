@@ -1,18 +1,13 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import {
     StyleSheet,
     View,
     Text,
-    ScrollView,
-    Pressable,
-    Animated,
-    PanResponder,
-    Dimensions
+    ScrollView
 } from 'react-native';
 import { Message } from '@/types/thread';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, spacing } from '@/constants/theme';
-import { GripHorizontal } from 'lucide-react-native';
 
 interface ChatOverlayProps {
     messages: Message[];
@@ -21,86 +16,22 @@ interface ChatOverlayProps {
 }
 
 export const ChatOverlay = ({ messages, visible, onSendMessage }: ChatOverlayProps) => {
-    const [expanded, setExpanded] = useState(false);
     const scrollViewRef = useRef<ScrollView>(null);
-    const panY = useRef(new Animated.Value(0)).current;
-    const { height: screenHeight } = Dimensions.get('window');
-
-    const collapsedHeight = 120;
-    const expandedHeight = screenHeight * 0.7;
-
-    const panResponder = PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderMove: (_, gestureState) => {
-            panY.setValue(gestureState.dy);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-            if (gestureState.dy < -50 && !expanded) {
-                // Swipe up - expand
-                Animated.spring(panY, {
-                    toValue: 0,
-                    useNativeDriver: false,
-                }).start();
-                setExpanded(true);
-            } else if (gestureState.dy > 50 && expanded) {
-                // Swipe down - collapse
-                Animated.spring(panY, {
-                    toValue: 0,
-                    useNativeDriver: false,
-                }).start();
-                setExpanded(false);
-            } else {
-                // Return to original position
-                Animated.spring(panY, {
-                    toValue: 0,
-                    useNativeDriver: false,
-                }).start();
-            }
-        },
-    });
-
-    // Calculate height based on expanded state
-    const animatedHeight = panY.interpolate({
-        inputRange: [-200, 200],
-        outputRange: [
-            expanded ? expandedHeight + 100 : expandedHeight,
-            expanded ? collapsedHeight : collapsedHeight - 50,
-        ],
-        extrapolate: 'clamp',
-    });
 
     if (!visible) {
-        return (
-            <Pressable
-                style={styles.peekBar}
-                onPress={() => setExpanded(true)}
-                testID="chat-peek-bar"
-            >
-                <Text style={styles.peekText}>Chat Messages</Text>
-            </Pressable>
-        );
+        return null;
     }
 
     return (
-        <Animated.View
-            style={[
-                styles.container,
-                { height: animatedHeight }
-            ]}
+        <View
+            style={styles.container}
             testID="chat-overlay"
         >
-            <Pressable
-                style={styles.handleContainer}
-                {...panResponder.panHandlers}
-                testID="chat-handle"
-            >
-                <GripHorizontal size={20} color={colors.textSecondary} />
-            </Pressable>
-
             <ScrollView
                 ref={scrollViewRef}
                 style={styles.messagesContainer}
                 contentContainerStyle={styles.messagesContent}
+                showsVerticalScrollIndicator={false}
                 onContentSizeChange={() => {
                     if (scrollViewRef.current && messages.length > 0) {
                         scrollViewRef.current.scrollToEnd({ animated: true });
@@ -161,70 +92,57 @@ export const ChatOverlay = ({ messages, visible, onSendMessage }: ChatOverlayPro
                     </>
                 )}
             </ScrollView>
-        </Animated.View>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 0,
+        top: 0,
         left: 0,
         right: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        borderTopLeftRadius: borderRadius.xl,
-        borderTopRightRadius: borderRadius.xl,
-        overflow: 'hidden',
-    },
-    handleContainer: {
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: colors.divider,
+        bottom: 0,
+        backgroundColor: 'transparent',
+        justifyContent: 'flex-start',
+        pointerEvents: 'box-none', // Allow touches to pass through to camera
     },
     messagesContainer: {
         flex: 1,
+        paddingTop: 60, // Minimal top padding for status bar
+        pointerEvents: 'auto', // Enable scrolling within messages
     },
     messagesContent: {
         padding: spacing.md,
+        paddingBottom: 200, // Extra bottom padding to avoid controls
+        paddingTop: spacing.lg, // Extra top padding to avoid top controls
+        minHeight: '100%',
+        justifyContent: 'flex-start',
     },
     messageBubble: {
-        maxWidth: '80%',
+        maxWidth: '80%', // Slightly smaller to leave more camera space
         padding: spacing.md,
         borderRadius: borderRadius.lg,
         marginBottom: spacing.md,
     },
     userMessage: {
         alignSelf: 'flex-end',
-        backgroundColor: colors.primary,
+        backgroundColor: `${colors.primary}B3`, // Semi-transparent primary color (70% opacity)
     },
     systemMessage: {
         alignSelf: 'flex-start',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)', // Semi-transparent black
     },
     messageText: {
         color: '#fff',
         fontSize: fontSize.md,
-    },
-    peekBar: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 40,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderTopLeftRadius: borderRadius.md,
-        borderTopRightRadius: borderRadius.md,
-    },
-    peekText: {
-        color: '#fff',
-        fontSize: fontSize.sm,
+        fontWeight: '600',
+        textShadowColor: 'rgba(0, 0, 0, 0.8)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 3,
     },
     placeholderMessage: {
-        opacity: 0.7,
+        opacity: 0.6,
     },
     placeholderText: {
         fontStyle: 'italic',
