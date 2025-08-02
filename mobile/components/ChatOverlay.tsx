@@ -63,8 +63,8 @@ export const ChatOverlay = ({ messages, visible, onSendMessage, messageStyle, mi
 
         return (
             <View style={[
-                styles.messageBubble, 
-                styles.systemMessage, 
+                styles.messageBubble,
+                styles.systemMessage,
                 styles.typingContainer,
                 typeof messageStyle === 'object' ? messageStyle : null
             ]}>
