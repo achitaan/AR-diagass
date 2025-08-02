@@ -156,22 +156,78 @@ backend/
 
    **Set up database structure and run migrations:**
    ```powershell
-   # Initialize database schema
-   make setup-db
+   # Make sure you're in the backend directory with virtual environment activated
+   cd backend
+   .venv\Scripts\activate
    
-   # Run database migrations
-   make migrate
+   # Initialize Alembic migrations (if not already done)
+   alembic init migrations
    
-   # If make is not available, run directly:
+   # Create initial migration for all tables
+   alembic revision --autogenerate -m "Initial tables: threads, messages, embeddings"
+   
+   # Run migrations to create tables
    alembic upgrade head
+   
+   # Alternative: If make is available
+   make setup-db
+   make migrate
+   ```
+
+   **Create tables manually (if migrations fail):**
+   ```powershell
+   # Connect to your database
+   psql -U postgres -h localhost -d painar
+   ```
+   
+   ```sql
+   -- Create threads table
+   CREATE TABLE IF NOT EXISTS threads (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       title VARCHAR(255),
+       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+   );
+   
+   -- Create messages table
+   CREATE TABLE IF NOT EXISTS messages (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       thread_id UUID REFERENCES threads(id) ON DELETE CASCADE,
+       content TEXT NOT NULL,
+       role VARCHAR(50) NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+       metadata JSONB
+   );
+   
+   -- Create embeddings table for vector storage
+   CREATE TABLE IF NOT EXISTS embeddings (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       content TEXT NOT NULL,
+       embedding vector(1536), -- OpenAI embedding dimension
+       metadata JSONB,
+       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+   );
+   
+   -- Create indexes for better performance
+   CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
+   CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+   CREATE INDEX IF NOT EXISTS idx_embeddings_embedding ON embeddings USING ivfflat (embedding vector_cosine_ops);
+   
+   -- Grant permissions to painar_user
+   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO painar_user;
+   GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO painar_user;
+   GRANT USAGE ON SCHEMA public TO painar_user;
+   
+   -- Exit PostgreSQL
+   \q
    ```
 
    **Verify database setup:**
    ```powershell
    # Connect to verify everything is working
-   psql -U painar_user -d painar -h localhost -p 5432
+   psql -U postgres -d painar -h localhost -p 5432
+   ```
    
-   # In PostgreSQL prompt, check tables and extensions:
    ```sql
    -- Check if pgvector extension is installed
    \dx
@@ -185,8 +241,50 @@ backend/
    -- Verify vector extension functions
    SELECT proname FROM pg_proc WHERE proname LIKE '%vector%' LIMIT 5;
    
+   -- Check table structures
+   \d threads
+   \d messages
+   \d embeddings
+   
    -- Exit
    \q
+   ```
+
+   **Test table creation with Python:**
+   ```powershell
+   # Run this to test database connection and tables
+   python -c "
+   import asyncio
+   import asyncpg
+   
+   async def test_tables():
+       try:
+           conn = await asyncpg.connect('postgresql://postgres:1412@localhost:5432/painar')
+           
+           # Test threads table
+           await conn.execute('SELECT COUNT(*) FROM threads')
+           print('✓ Threads table exists')
+           
+           # Test messages table  
+           await conn.execute('SELECT COUNT(*) FROM messages')
+           print('✓ Messages table exists')
+           
+           # Test embeddings table
+           await conn.execute('SELECT COUNT(*) FROM embeddings')
+           print('✓ Embeddings table exists')
+           
+           # Test vector extension
+           result = await conn.fetchval('SELECT version()')
+           print(f'✓ Connected to: {result}')
+           
+           await conn.close()
+           print('✓ All database tables are ready!')
+           
+       except Exception as e:
+           print(f'✗ Database test failed: {e}')
+   
+   asyncio.run(test_tables())
+   "
    ```
 
 6. **Start the development server:**
