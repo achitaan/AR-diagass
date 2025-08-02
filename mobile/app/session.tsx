@@ -4,6 +4,7 @@ import {
     View,
     Text,
     Pressable,
+    TouchableOpacity,
     Alert,
     Platform,
     SafeAreaView
@@ -22,6 +23,7 @@ import {
     Check
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import Voice from '@react-native-voice/voice';
 import { useThreads } from '@/hooks/use-threads-store';
 import { ChatOverlay } from '@/components/ChatOverlay';
 import { DepthToggle } from '@/components/DepthToggle';
@@ -119,12 +121,16 @@ export default function SessionScreen() {
                 <Text style={styles.permissionText}>
                     We need camera permission to use the AR features.
                 </Text>
-                <Pressable
+                <TouchableOpacity
                     style={styles.permissionButton}
-                    onPress={requestPermission}
+                    onPress={() => {
+                        console.log('📷 Camera permission requested!');
+                        requestPermission();
+                    }}
+                    activeOpacity={0.7}
                 >
                     <Text style={styles.permissionButtonText}>Grant Permission</Text>
-                </Pressable>
+                </TouchableOpacity>
             </SafeAreaView>
         );
     }
@@ -151,9 +157,13 @@ export default function SessionScreen() {
             {/* Top Controls */}
             <SafeAreaView style={styles.topControls}>
                 <View style={styles.controlsGroup}>
-                    <Pressable
+                    <TouchableOpacity
                         style={styles.controlButton}
-                        onPress={handleToggleMic}
+                        onPress={() => {
+                            console.log('🎤 Mic button pressed!');
+                            handleToggleMic();
+                        }}
+                        activeOpacity={0.7}
                         testID="mic-toggle"
                     >
                         {micEnabled ? (
@@ -161,11 +171,15 @@ export default function SessionScreen() {
                         ) : (
                             <MicOff size={24} color="#fff" />
                         )}
-                    </Pressable>
+                    </TouchableOpacity>
 
-                    <Pressable
+                    <TouchableOpacity
                         style={styles.controlButton}
-                        onPress={handleToggleChat}
+                        onPress={() => {
+                            console.log('👁️ Chat toggle pressed!');
+                            handleToggleChat();
+                        }}
+                        activeOpacity={0.7}
                         testID="chat-toggle"
                     >
                         {chatVisible ? (
@@ -173,7 +187,7 @@ export default function SessionScreen() {
                         ) : (
                             <EyeOff size={24} color="#fff" />
                         )}
-                    </Pressable>
+                    </TouchableOpacity>
 
                     <DepthToggle
                         currentDepth={currentDepth}
@@ -184,43 +198,59 @@ export default function SessionScreen() {
 
             {/* Left Side Controls */}
             <View style={styles.leftControls}>
-                <Pressable
+                <TouchableOpacity
                     style={[
                         styles.controlButton,
                         radiatingMode && styles.activeControlButton
                     ]}
-                    onPress={handleToggleRadiatingMode}
+                    onPress={() => {
+                        console.log('🔄 Radiating mode pressed!');
+                        handleToggleRadiatingMode();
+                    }}
+                    activeOpacity={0.7}
                     testID="radiating-toggle"
                 >
                     <ArrowUpDown size={24} color="#fff" />
-                </Pressable>
+                </TouchableOpacity>
 
-                <Pressable
+                <TouchableOpacity
                     style={styles.controlButton}
-                    onPress={handleUndo}
+                    onPress={() => {
+                        console.log('↶ Undo pressed!');
+                        handleUndo();
+                    }}
+                    activeOpacity={0.7}
                     testID="undo-button"
                 >
                     <RotateCcw size={24} color="#fff" />
-                </Pressable>
+                </TouchableOpacity>
 
-                <Pressable
+                <TouchableOpacity
                     style={styles.controlButton}
-                    onPress={handleRedo}
+                    onPress={() => {
+                        console.log('↷ Redo pressed!');
+                        handleRedo();
+                    }}
+                    activeOpacity={0.7}
                     testID="redo-button"
                 >
                     <RotateCw size={24} color="#fff" />
-                </Pressable>
+                </TouchableOpacity>
             </View>
 
             {/* Save Button */}
             <SafeAreaView style={styles.bottomControls}>
-                <Pressable
+                <TouchableOpacity
                     style={styles.saveButton}
-                    onPress={handleSave}
+                    onPress={() => {
+                        console.log('💾 Save button pressed!');
+                        handleSave();
+                    }}
+                    activeOpacity={0.7}
                     testID="save-button"
                 >
                     <Check size={24} color="#fff" />
-                </Pressable>
+                </TouchableOpacity>
             </SafeAreaView>
 
             {/* Chat Overlay */}
@@ -253,12 +283,16 @@ const styles = StyleSheet.create({
         top: 0,
         right: 0,
         padding: spacing.md,
+        zIndex: 1000,
+        elevation: 1000,
     },
     controlsGroup: {
         alignItems: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         borderRadius: borderRadius.lg,
         padding: spacing.sm,
+        zIndex: 1001,
+        elevation: 1001,
     },
     leftControls: {
         position: 'absolute',
@@ -268,11 +302,15 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         borderRadius: borderRadius.lg,
         padding: spacing.sm,
+        zIndex: 1000,
+        elevation: 1000,
     },
     bottomControls: {
         position: 'absolute',
         bottom: spacing.xl,
         right: spacing.xl,
+        zIndex: 1000,
+        elevation: 1000,
     },
     controlButton: {
         width: 50,
@@ -282,6 +320,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginVertical: spacing.xs,
+        zIndex: 1002,
+        elevation: 1002,
     },
     activeControlButton: {
         backgroundColor: colors.accent,
