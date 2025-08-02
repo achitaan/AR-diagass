@@ -21,7 +21,7 @@ export const BackendTest = ({ onClose }: BackendTestProps) => {
     try {
       console.log('🔌 Testing backend connection...');
       console.log('🏥 Checking backend health...');
-      
+
       // For Android emulator, use 10.0.2.2 instead of localhost
       const response = await fetch('http://10.0.2.2:8000/health', {
         method: 'GET',
