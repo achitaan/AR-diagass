@@ -153,13 +153,13 @@ async def clear_knowledge_base(_: str = Depends(verify_token)) -> Dict[str, str]
     """
     try:
         from app.db.core import AsyncSessionLocal
-        from app.db.models import Message, Embedding, Thread
+        from app.db.models import Message, Embedding, Thread, MessageRole
         from sqlmodel import select
         
         async with AsyncSessionLocal() as session:
             # Delete all system messages (knowledge base)
             system_messages_result = await session.exec(
-                select(Message).where(Message.role == "system")
+                select(Message).where(Message.role == MessageRole.SYSTEM)
             )
             system_messages = system_messages_result.all()
             
