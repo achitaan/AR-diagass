@@ -8,12 +8,19 @@
 import { Message } from '@/types/thread';
 
 // Configuration - Update these based on your backend setup
-// const API_BASE_URL = process.env.NODE_ENV === 'development'
-//   ? 'http://localhost:8000'  // Development - backend running locally
-//   : 'http://your-backend-url.com';  // Production URL
-const API_BASE_URL = 'http://localhost:8000'  // Development - backend running locally
+// For Android emulator, use 10.0.2.2 instead of localhost
+const API_BASE_URL = 'http://10.0.2.2:8000';  // Android emulator compatible URL
 
 const AUTH_TOKEN = 'dev-token';  // This should match DEV_TOKEN in backend
+
+// Generate proper UUID v4 format
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export interface ChatRequest {
   message: string;
@@ -43,7 +50,14 @@ class ApiService {
    */
   async sendMessage(request: ChatRequest): Promise<ChatResponse> {
     try {
-      console.log('🚀 Sending message to backend:', { message: request.message, thread_id: request.thread_id });
+      // Only send thread_id if it's a valid UUID format, otherwise let backend create one
+      const requestPayload: any = { message: request.message };
+      
+      if (request.thread_id && this.isValidUUID(request.thread_id)) {
+        requestPayload.thread_id = request.thread_id;
+      }
+      
+      console.log('🚀 Sending message to backend:', requestPayload);
       
       const response = await fetch(`${this.baseUrl}/chat/simple`, {
         method: 'POST',
@@ -51,7 +65,7 @@ class ApiService {
           'Content-Type': 'application/json',
           // 'Authorization': `Bearer ${this.authToken}`,
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
@@ -73,6 +87,14 @@ class ApiService {
       
       throw error;
     }
+  }
+
+  /**
+   * Check if a string is a valid UUID format
+   */
+  private isValidUUID(str: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(str);
   }
 
   /**
@@ -134,7 +156,7 @@ class ApiService {
    */
   apiResponseToMessage(response: ChatResponse, isUser: boolean = false): Message {
     return {
-      id: Math.random().toString(36).substring(2, 15), // Generate random ID
+      id: generateUUID(), // Use proper UUID instead of random string
       content: response.response,
       isUser,
       timestamp: Date.now(),

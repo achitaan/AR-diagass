@@ -8,8 +8,15 @@ import { apiService, ChatRequest } from '@/services/api';
 
 const STORAGE_KEY = 'pain-tracker-threads';
 
-// Helper to generate unique IDs
-const generateId = () => Math.random().toString(36).substring(2, 15);
+// Helper to generate proper UUIDs compatible with backend
+const generateId = () => {
+  // Generate a proper UUID v4 format
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export const [ThreadsProvider, useThreads] = createContextHook(() => {
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -125,6 +132,12 @@ export const [ThreadsProvider, useThreads] = createContextHook(() => {
         
         const response = await apiService.sendMessage(chatRequest);
         
+        // If the backend provided a different thread_id (new thread), update our local thread
+        if (response.thread_id && response.thread_id !== currentThreadId) {
+          console.log(`🔄 Updating thread ID from ${currentThreadId} to ${response.thread_id}`);
+          setCurrentThreadId(response.thread_id);
+        }
+        
         // Create AI response message
         const aiMessage: Message = {
           id: generateId(),
@@ -133,11 +146,13 @@ export const [ThreadsProvider, useThreads] = createContextHook(() => {
           timestamp: Date.now()
         };
         
-        // Add AI response to the thread
+        // Add AI response to the thread (use the response thread_id if available)
+        const finalThreadId = response.thread_id || currentThreadId;
         updatedThreads = threads.map(thread => {
           if (thread.id === currentThreadId) {
             return {
               ...thread,
+              id: finalThreadId, // Update to backend thread ID if different
               messages: [...thread.messages, userMessage, aiMessage],
               lastMessage: response.response,
               lastUpdated: Date.now()

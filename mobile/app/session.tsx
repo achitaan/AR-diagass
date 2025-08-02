@@ -140,7 +140,7 @@ export default function SessionScreen() {
                 testID="camera-view"
             />
 
-            {/* Drawing Canvas - Separate from CameraView to avoid children warning */}
+            {/* Drawing Canvas */}
             <View
                 style={styles.drawingCanvas}
                 onTouchStart={handleTouchStart}
@@ -148,9 +148,9 @@ export default function SessionScreen() {
                 onTouchEnd={handleTouchEnd}
             />
 
-            {/* Top Controls */}
-            <SafeAreaView style={styles.topControls}>
-                <View style={styles.controlsGroup}>
+            {/* Topbar with all controls */}
+            <SafeAreaView style={styles.topbar}>
+                <View style={styles.topbarContent}>
                     <Pressable
                         style={styles.controlButton}
                         onPress={handleToggleMic}
@@ -162,7 +162,6 @@ export default function SessionScreen() {
                             <MicOff size={24} color="#fff" />
                         )}
                     </Pressable>
-
                     <Pressable
                         style={styles.controlButton}
                         onPress={handleToggleChat}
@@ -174,62 +173,54 @@ export default function SessionScreen() {
                             <EyeOff size={24} color="#fff" />
                         )}
                     </Pressable>
-
                     <DepthToggle
                         currentDepth={currentDepth}
                         onDepthChange={handleDepthChange}
                     />
+                    <Pressable
+                        style={[
+                            styles.controlButton,
+                            radiatingMode && styles.activeControlButton
+                        ]}
+                        onPress={handleToggleRadiatingMode}
+                        testID="radiating-toggle"
+                    >
+                        <ArrowUpDown size={24} color="#fff" />
+                    </Pressable>
+                    <Pressable
+                        style={styles.controlButton}
+                        onPress={handleUndo}
+                        testID="undo-button"
+                    >
+                        <RotateCcw size={24} color="#fff" />
+                    </Pressable>
+                    <Pressable
+                        style={styles.controlButton}
+                        onPress={handleRedo}
+                        testID="redo-button"
+                    >
+                        <RotateCw size={24} color="#fff" />
+                    </Pressable>
+                    <Pressable
+                        style={styles.saveButton}
+                        onPress={handleSave}
+                        testID="save-button"
+                    >
+                        <Check size={24} color="#fff" />
+                    </Pressable>
                 </View>
             </SafeAreaView>
 
-            {/* Left Side Controls */}
-            <View style={styles.leftControls}>
-                <Pressable
-                    style={[
-                        styles.controlButton,
-                        radiatingMode && styles.activeControlButton
-                    ]}
-                    onPress={handleToggleRadiatingMode}
-                    testID="radiating-toggle"
-                >
-                    <ArrowUpDown size={24} color="#fff" />
-                </Pressable>
-
-                <Pressable
-                    style={styles.controlButton}
-                    onPress={handleUndo}
-                    testID="undo-button"
-                >
-                    <RotateCcw size={24} color="#fff" />
-                </Pressable>
-
-                <Pressable
-                    style={styles.controlButton}
-                    onPress={handleRedo}
-                    testID="redo-button"
-                >
-                    <RotateCw size={24} color="#fff" />
-                </Pressable>
-            </View>
-
-            {/* Save Button */}
-            <SafeAreaView style={styles.bottomControls}>
-                <Pressable
-                    style={styles.saveButton}
-                    onPress={handleSave}
-                    testID="save-button"
-                >
-                    <Check size={24} color="#fff" />
-                </Pressable>
-            </SafeAreaView>
-
-            {/* Chat Overlay */}
+            {/* Chat Overlay below topbar */}
             {currentThread && (
-                <ChatOverlay
-                    messages={currentThread.messages}
-                    visible={chatVisible}
-                    onSendMessage={(message) => addMessage(message, true)}
-                />
+                <View style={styles.chatContainer} pointerEvents={chatVisible ? 'auto' : 'none'}>
+                    <ChatOverlay
+                        messages={currentThread.messages}
+                        visible={chatVisible}
+                        onSendMessage={(message) => addMessage(message, true)}
+                        messageStyle={styles.gradientMessage}
+                    />
+                </View>
             )}
         </View>
     );
@@ -248,31 +239,43 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
         pointerEvents: 'box-none',
     },
-    topControls: {
+    topbar: {
         position: 'absolute',
         top: 0,
+        left: 0,
         right: 0,
-        padding: spacing.md,
+        zIndex: 10,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm,
+        paddingHorizontal: spacing.md,
     },
-    controlsGroup: {
+    topbarContent: {
+        flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        borderRadius: borderRadius.lg,
-        padding: spacing.sm,
+        justifyContent: 'space-between',
     },
-    leftControls: {
+    chatContainer: {
         position: 'absolute',
-        left: spacing.md,
-        top: '50%',
-        transform: [{ translateY: -80 }],
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        borderRadius: borderRadius.lg,
-        padding: spacing.sm,
+        top: 70, // below topbar
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 5,
+        pointerEvents: 'box-none',
     },
-    bottomControls: {
-        position: 'absolute',
-        bottom: spacing.xl,
-        right: spacing.xl,
+    gradientMessage: {
+        backgroundColor: 'rgba(30, 30, 60, 0.4)',
+        borderRadius: 16,
+        marginVertical: 4,
+        padding: 12,
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+        // Simulate blur and gradient
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
     },
     controlButton: {
         width: 50,
