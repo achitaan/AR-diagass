@@ -6,7 +6,8 @@ import {
     Pressable,
     Alert,
     Platform,
-    SafeAreaView
+    SafeAreaView,
+    PanResponder
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -19,7 +20,8 @@ import {
     ArrowUpDown,
     RotateCcw,
     RotateCw,
-    Check
+    Check,
+    Send
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useThreads } from '@/hooks/use-threads-store';
@@ -41,6 +43,35 @@ export default function SessionScreen() {
 
     const { getCurrentThread, addMessage, addDrawingStroke } = useThreads();
     const currentThread = getCurrentThread();
+
+    // Pan responder for swipe gestures to change depth
+    const panResponder = PanResponder.create({
+        onMoveShouldSetPanResponder: (evt, gestureState) => {
+            return Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 50;
+        },
+        onPanResponderMove: () => { },
+        onPanResponderRelease: (evt, gestureState) => {
+            if (gestureState.dx > 50) {
+                // Swipe right - next depth level
+                handleDepthChange(getNextDepth(currentDepth));
+            } else if (gestureState.dx < -50) {
+                // Swipe left - previous depth level
+                handleDepthChange(getPreviousDepth(currentDepth));
+            }
+        },
+    });
+
+    const getNextDepth = (depth: DepthLevel): DepthLevel => {
+        const depthLevels: DepthLevel[] = ['skin', 'muscle', 'deep'];
+        const currentIndex = depthLevels.indexOf(depth);
+        return depthLevels[(currentIndex + 1) % depthLevels.length];
+    };
+
+    const getPreviousDepth = (depth: DepthLevel): DepthLevel => {
+        const depthLevels: DepthLevel[] = ['skin', 'muscle', 'deep'];
+        const currentIndex = depthLevels.indexOf(depth);
+        return depthLevels[(currentIndex - 1 + depthLevels.length) % depthLevels.length];
+    };
 
     // Request camera permission if not granted
     useEffect(() => {
@@ -130,7 +161,7 @@ export default function SessionScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={styles.container} {...panResponder.panHandlers}>
             <StatusBar style="light" />
 
             {/* Camera View */}
@@ -148,20 +179,14 @@ export default function SessionScreen() {
                 onTouchEnd={handleTouchEnd}
             />
 
-            {/* Topbar with all controls */}
+            {/* Depth Tag - Top Left */}
+            <View style={styles.depthTag}>
+                <Text style={styles.depthTagText}>{currentDepth.toUpperCase()}</Text>
+            </View>
+
+            {/* Topbar with centered controls */}
             <SafeAreaView style={styles.topbar}>
                 <View style={styles.topbarContent}>
-                    <Pressable
-                        style={styles.controlButton}
-                        onPress={handleToggleMic}
-                        testID="mic-toggle"
-                    >
-                        {micEnabled ? (
-                            <Mic size={24} color="#fff" />
-                        ) : (
-                            <MicOff size={24} color="#fff" />
-                        )}
-                    </Pressable>
                     <Pressable
                         style={styles.controlButton}
                         onPress={handleToggleChat}
@@ -173,10 +198,6 @@ export default function SessionScreen() {
                             <EyeOff size={24} color="#fff" />
                         )}
                     </Pressable>
-                    <DepthToggle
-                        currentDepth={currentDepth}
-                        onDepthChange={handleDepthChange}
-                    />
                     <Pressable
                         style={[
                             styles.controlButton,
@@ -219,6 +240,8 @@ export default function SessionScreen() {
                         visible={chatVisible}
                         onSendMessage={(message) => addMessage(message, true)}
                         messageStyle={styles.gradientMessage}
+                        micEnabled={micEnabled}
+                        onToggleMic={handleToggleMic}
                     />
                 </View>
             )}
@@ -253,11 +276,30 @@ const styles = StyleSheet.create({
     topbarContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+        gap: spacing.md,
+    },
+    depthTag: {
+        position: 'absolute',
+        top: 60,
+        left: spacing.md,
+        zIndex: 15,
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: borderRadius.lg,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    depthTagText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: 'bold',
+        letterSpacing: 1,
     },
     chatContainer: {
         position: 'absolute',
-        top: 70, // below topbar
+        top: 120, // below topbar and depth tag
         left: 0,
         right: 0,
         bottom: 0,

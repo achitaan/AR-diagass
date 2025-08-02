@@ -15,9 +15,11 @@ interface ChatOverlayProps {
     visible: boolean;
     onSendMessage?: (message: string) => void;
     messageStyle?: object;
+    micEnabled?: boolean;
+    onToggleMic?: () => void;
 }
 
-export const ChatOverlay = ({ messages, visible, onSendMessage, messageStyle }: ChatOverlayProps) => {
+export const ChatOverlay = ({ messages, visible, onSendMessage, messageStyle, micEnabled, onToggleMic }: ChatOverlayProps) => {
     const scrollViewRef = useRef<ScrollView>(null);
 
     if (!visible) {
@@ -100,6 +102,8 @@ export const ChatOverlay = ({ messages, visible, onSendMessage, messageStyle }: 
             <ChatInput
                 onSendMessage={onSendMessage || (() => { })}
                 placeholder="Describe your pain or ask a question..."
+                micEnabled={micEnabled}
+                onToggleMic={onToggleMic}
             />
         </View>
     );
@@ -119,13 +123,13 @@ const styles = StyleSheet.create({
     },
     messagesContainer: {
         flex: 1,
-        paddingTop: 60, // Minimal top padding for status bar
+        paddingTop: 20, // Reduced padding
         pointerEvents: 'auto', // Enable scrolling within messages
     },
     messagesContent: {
         padding: spacing.md,
         paddingBottom: spacing.xl, // Space for input
-        paddingTop: spacing.lg, // Extra top padding to avoid top controls
+        paddingTop: spacing.sm, // Reduced top padding
         minHeight: '100%',
         justifyContent: 'flex-start',
     },

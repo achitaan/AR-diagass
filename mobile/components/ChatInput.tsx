@@ -3,11 +3,11 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Text,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Send, Mic, MicOff } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, spacing } from '@/constants/theme';
 
@@ -15,12 +15,16 @@ interface ChatInputProps {
   onSendMessage: (message: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  micEnabled?: boolean;
+  onToggleMic?: () => void;
 }
 
-export const ChatInput = ({ 
-  onSendMessage, 
-  disabled = false, 
-  placeholder = "Type your message..." 
+export const ChatInput = ({
+  onSendMessage,
+  disabled = false,
+  placeholder = "Type your message...",
+  micEnabled = false,
+  onToggleMic
 }: ChatInputProps) => {
   const [message, setMessage] = useState('');
 
@@ -32,7 +36,7 @@ export const ChatInput = ({
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
@@ -53,22 +57,35 @@ export const ChatInput = ({
           onSubmitEditing={handleSend}
           testID="chat-input"
         />
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            (!message.trim() || disabled) && styles.sendButtonDisabled
-          ]}
-          onPress={handleSend}
-          disabled={!message.trim() || disabled}
-          testID="send-button"
-        >
-          <Text style={[
-            styles.sendButtonText,
-            (!message.trim() || disabled) && styles.sendButtonTextDisabled
-          ]}>
-            Send
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          {onToggleMic && (
+            <TouchableOpacity
+              style={[
+                styles.micButton,
+                micEnabled && styles.micButtonActive
+              ]}
+              onPress={onToggleMic}
+              testID="mic-button"
+            >
+              {micEnabled ? (
+                <Mic size={20} color="#fff" />
+              ) : (
+                <MicOff size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              (!message.trim() || disabled) && styles.sendButtonDisabled
+            ]}
+            onPress={handleSend}
+            disabled={!message.trim() || disabled}
+            testID="send-button"
+          >
+            <Send size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -106,9 +123,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     color: colors.textSecondary,
   },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  micButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  micButtonActive: {
+    backgroundColor: colors.primary,
+  },
   sendButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.lg,
     minHeight: 40,
@@ -117,13 +151,5 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: colors.textSecondary,
-  },
-  sendButtonText: {
-    color: colors.surface,
-    fontSize: fontSize.md,
-    fontWeight: '600',
-  },
-  sendButtonTextDisabled: {
-    color: colors.background,
   },
 });
