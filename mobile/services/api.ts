@@ -8,9 +8,10 @@
 import { Message } from '@/types/thread';
 
 // Configuration - Update these based on your backend setup
-const API_BASE_URL = process.env.NODE_ENV === 'development'
-  ? 'http://localhost:8000'  // Development - backend running locally
-  : 'http://your-backend-url.com';  // Production URL
+// const API_BASE_URL = process.env.NODE_ENV === 'development'
+//   ? 'http://localhost:8000'  // Development - backend running locally
+//   : 'http://your-backend-url.com';  // Production URL
+const API_BASE_URL = 'http://localhost:8000'  // Development - backend running locally
 
 const AUTH_TOKEN = 'dev-token';  // This should match DEV_TOKEN in backend
 
@@ -48,7 +49,7 @@ class ApiService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.authToken}`,
+          // 'Authorization': `Bearer ${this.authToken}`,
         },
         body: JSON.stringify(request),
       });
@@ -84,7 +85,7 @@ class ApiService {
       const response = await fetch(`${this.baseUrl}/health`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.authToken}`,
+          // 'Authorization': `Bearer ${this.authToken}`,
         },
       });
 
@@ -106,7 +107,7 @@ class ApiService {
       const response = await fetch(`${this.baseUrl}/`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.authToken}`,
+          // 'Authorization': `Bearer ${this.authToken}`,
         },
       });
 

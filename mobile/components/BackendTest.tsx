@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { apiService } from '@/services/api';
-import { useThreads } from '@/hooks/use-threads-store';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, spacing } from '@/constants/theme';
 
@@ -12,7 +10,6 @@ interface BackendTestProps {
 export const BackendTest = ({ onClose }: BackendTestProps) => {
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown');
   const [testing, setTesting] = useState(false);
-  const { testBackendConnection } = useThreads();
 
   useEffect(() => {
     // Test connection on mount
@@ -22,41 +19,29 @@ export const BackendTest = ({ onClose }: BackendTestProps) => {
   const testConnection = async () => {
     setTesting(true);
     try {
-      const isConnected = await testBackendConnection();
-      setConnectionStatus(isConnected ? 'connected' : 'disconnected');
+      console.log('🔌 Testing backend connection...');
+      console.log('🏥 Checking backend health...');
       
-      if (isConnected) {
-        // Test API info endpoint
-        const apiInfo = await apiService.getApiInfo();
-        console.log('API Info:', apiInfo);
+      // For Android emulator, use 10.0.2.2 instead of localhost
+      const response = await fetch('http://10.0.2.2:8000/health', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Backend connected successfully:', data);
+        setConnectionStatus('connected');
+      } else {
+        console.log('❌ Backend health check failed');
+        setConnectionStatus('disconnected');
       }
     } catch (error) {
-      console.error('Connection test failed:', error);
+      console.error('❌ Health check failed:', error);
+      console.log('❌ Backend health check failed');
       setConnectionStatus('disconnected');
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const sendTestMessage = async () => {
-    if (connectionStatus !== 'connected') {
-      Alert.alert('Error', 'Backend is not connected. Please check your server.');
-      return;
-    }
-
-    try {
-      setTesting(true);
-      const response = await apiService.sendMessage({
-        message: 'Hello, this is a test message from the mobile app!',
-      });
-      
-      Alert.alert(
-        'Test Message Sent!', 
-        `AI Response: ${response.response.substring(0, 100)}...`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      Alert.alert('Error', `Failed to send test message: ${error}`);
     } finally {
       setTesting(false);
     }
@@ -81,7 +66,7 @@ export const BackendTest = ({ onClose }: BackendTestProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Backend Connection Test</Text>
-      
+
       <View style={[styles.statusContainer, { backgroundColor: getStatusColor() + '20' }]}>
         <Text style={[styles.statusText, { color: getStatusColor() }]}>
           {getStatusText()}
@@ -94,16 +79,8 @@ export const BackendTest = ({ onClose }: BackendTestProps) => {
         disabled={testing}
       >
         <Text style={styles.buttonText}>
-          {testing ? 'Testing...' : 'Test Connection'}
+          {testing ? 'Testing...' : 'Test Health Endpoint'}
         </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.primary }, (testing || connectionStatus !== 'connected') && styles.buttonDisabled]}
-        onPress={sendTestMessage}
-        disabled={testing || connectionStatus !== 'connected'}
-      >
-        <Text style={styles.buttonText}>Send Test Message</Text>
       </TouchableOpacity>
 
       {onClose && (
