@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Pain Assessment AR App",
+    "slug": "pain-assessment-ar-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rork.painassessment",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.rork.painassessment",
+      "permissions": [
+        "android.permission.VIBRATE",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
+    },
+    "web": {},
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://rork.com/"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
