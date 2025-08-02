@@ -40,6 +40,7 @@ export default function SessionScreen() {
     const [currentDepth, setCurrentDepth] = useState<DepthLevel>('skin');
     const [radiatingMode, setRadiatingMode] = useState(false);
     const [drawingPoints, setDrawingPoints] = useState<{ x: number, y: number }[]>([]);
+    const [isLoadingMessage, setIsLoadingMessage] = useState(false);
 
     const { getCurrentThread, addMessage, addDrawingStroke } = useThreads();
     const currentThread = getCurrentThread();
@@ -71,6 +72,19 @@ export default function SessionScreen() {
         const depthLevels: DepthLevel[] = ['skin', 'muscle', 'deep'];
         const currentIndex = depthLevels.indexOf(depth);
         return depthLevels[(currentIndex - 1 + depthLevels.length) % depthLevels.length];
+    };
+
+    // Handle sending messages with loading state
+    const handleSendMessage = async (message: string) => {
+        setIsLoadingMessage(true);
+        try {
+            await addMessage(message, true);
+        } catch (error) {
+            console.error('Failed to send message:', error);
+            // You could add error handling here, like showing a toast
+        } finally {
+            setIsLoadingMessage(false);
+        }
     };
 
     // Request camera permission if not granted
@@ -238,10 +252,11 @@ export default function SessionScreen() {
                     <ChatOverlay
                         messages={currentThread.messages}
                         visible={chatVisible}
-                        onSendMessage={(message) => addMessage(message, true)}
+                        onSendMessage={handleSendMessage}
                         messageStyle={styles.gradientMessage}
                         micEnabled={micEnabled}
                         onToggleMic={handleToggleMic}
+                        isLoading={isLoadingMessage}
                     />
                 </View>
             )}
