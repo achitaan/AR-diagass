@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Plus, Search, MessageCircle, Send } from 'lucide-react-native';
+import { Plus, Search, MessageCircle, Send, Trash2 } from 'lucide-react-native';
 import { useThreads } from '@/hooks/use-threads-store';
 import { ThreadListCard } from '@/components/ThreadListCard';
 import { ActionButton } from '@/components/ActionButton';
@@ -201,32 +201,40 @@ export default function HomeScreen() {
                     data={threads}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
-                        <Pressable
-                            style={styles.threadItem}
-                            onPress={() => handleThreadPress(item.id)}
-                        >
-                            <View style={styles.threadIcon}>
-                                <MessageCircle size={24} color="#fff" />
-                            </View>
-                            <View style={styles.threadContent}>
-                                <View style={styles.threadHeader}>
-                                    <Text style={styles.threadTitle} numberOfLines={1}>
-                                        {item.title}
-                                    </Text>
-                                    <Text style={styles.threadTimestamp}>
-                                        {new Date(item.lastUpdated).toLocaleDateString()}
-                                    </Text>
+                        <View style={styles.threadItemWrapper}>
+                            <Pressable
+                                style={styles.threadItem}
+                                onPress={() => handleThreadPress(item.id)}
+                            >
+                                <View style={styles.threadIcon}>
+                                    <MessageCircle size={24} color="#fff" />
                                 </View>
-                                <Text style={styles.threadMessage} numberOfLines={2}>
-                                    {item.lastMessage}
-                                </Text>
-                                <View style={styles.threadFooter}>
-                                    <Text style={styles.messageCount}>
-                                        {item.messages.length} messages
+                                <View style={styles.threadContent}>
+                                    <View style={styles.threadHeader}>
+                                        <Text style={styles.threadTitle} numberOfLines={1}>
+                                            {item.title}
+                                        </Text>
+                                        <Text style={styles.threadTimestamp}>
+                                            {new Date(item.lastUpdated).toLocaleDateString()}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.threadMessage} numberOfLines={2}>
+                                        {item.lastMessage}
                                     </Text>
+                                    <View style={styles.threadFooter}>
+                                        <Text style={styles.messageCount}>
+                                            {item.messages.length} messages
+                                        </Text>
+                                    </View>
                                 </View>
-                            </View>
-                        </Pressable>
+                            </Pressable>
+                            <Pressable
+                                style={styles.deleteButton}
+                                onPress={() => handleDeleteThread(item.id)}
+                            >
+                                <Trash2 size={18} color="#ef4444" />
+                            </Pressable>
+                        </View>
                     )}
                     contentContainerStyle={styles.threadsList}
                     ListEmptyComponent={
@@ -301,8 +309,7 @@ const styles = StyleSheet.create({
     searchIcon: {
         position: 'absolute',
         left: spacing.md,
-        top: '50%',
-        transform: [{ translateY: -9 }],
+        top: 17, // (52px input height - 18px icon height) / 2 = 17px for perfect centering
         zIndex: 1,
     },
     searchInput: {
@@ -386,13 +393,29 @@ const styles = StyleSheet.create({
     threadsList: {
         paddingVertical: 0,
     },
+    threadItemWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'transparent',
+        borderBottomWidth: 1,
+        borderBottomColor: '#f3e8ff',
+    },
     threadItem: {
+        flex: 1,
         flexDirection: 'row',
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f3e8ff',
         backgroundColor: 'transparent',
+    },
+    deleteButton: {
+        padding: spacing.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        marginRight: spacing.sm,
+        borderRadius: 8,
+        width: 40,
+        height: 40,
     },
     threadIcon: {
         width: 48,
