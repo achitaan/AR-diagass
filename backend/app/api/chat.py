@@ -303,6 +303,128 @@ async def simple_chat(
                     assessment_system_prompt += f"\n\nASSESSMENT PROGRESS: {completion:.1f}% complete"
             
             messages = [SystemMessage(content=assessment_system_prompt)]
+            messages.append(HumanMessage(content=chat_request.message))
+            
+            response = await llm.ainvoke(messages)
+            llm_response = response.content
+        
+        # Store assistant message
+        assistant_message = Message(
+            id=uuid4(),
+            thread_id=thread_uuid,
+            role=MessageRole.ASSISTANT,
+            content=llm_response
+        )
+        session.add(assistant_message)
+        await session.commit()
+        
+        return SimpleChatResponse(
+            response=llm_response,
+            thread_id=str(thread_uuid)
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+
+@router.post("/json")
+async def chat_with_json_response(
+    chat_request: ChatRequest,
+    session: AsyncSession = Depends(get_session)
+) -> SimpleChatResponse:
+    """
+    Chat endpoint that accepts full ChatRequest (with pain data) but returns JSON instead of streaming.
+    
+    This is perfect for mobile apps that need to send pain area data but want a simple JSON response.
+    
+    Args:
+        chat_request: Full chat request with message, pain areas, and drawing data
+        session: Database session dependency
+        
+    Returns:
+        JSON response with the LLM's answer
+    """
+    try:
+        # Generate thread_id if not provided
+        thread_uuid = chat_request.thread_id or uuid4()
+        
+        # Ensure thread exists
+        thread_query = select(Thread).where(Thread.id == thread_uuid)
+        thread_result = await session.execute(thread_query)
+        thread = thread_result.scalar_one_or_none()
+        
+        if not thread:
+            # Create new thread
+            thread = Thread(
+                id=thread_uuid,
+                title=f"Chat {thread_uuid}"
+            )
+            session.add(thread)
+            await session.commit()
+        
+        # Store user message
+        user_message = Message(
+            id=uuid4(),
+            thread_id=thread_uuid,
+            role=MessageRole.USER,
+            content=chat_request.message
+        )
+        session.add(user_message)
+        await session.commit()
+        
+        # Get LLM response with pain data context
+        try:
+            # Fallback to direct OpenAI call with pain context
+            from langchain_openai import ChatOpenAI
+            
+            llm = ChatOpenAI(
+                model_name=settings.model_name,
+                openai_api_key=settings.openai_api_key,
+                temperature=0.7,
+                max_tokens=512
+            )
+            
+            # Create a comprehensive medical AI system prompt
+            from langchain.schema import SystemMessage, HumanMessage
+            
+            # Get the comprehensive system prompt from our assessment system
+            assessment_system_prompt = injury_assessment.system_prompt
+            
+            # Check if this is a new conversation that should start an assessment
+            session_id = str(thread_uuid)
+            is_new_assessment = session_id not in assessment_manager.active_assessments
+            
+            if is_new_assessment:
+                # Start a new assessment
+                assessment_manager.start_assessment(
+                    user_id="current_user",  # In a real app, get from authentication
+                    session_id=session_id,
+                    initial_complaint=chat_request.message
+                )
+                
+                # Get the first assessment question
+                next_question = assessment_manager.get_next_question(session_id)
+                if next_question:
+                    assessment_system_prompt += f"\n\nFIRST ASSESSMENT QUESTION TO ASK: {next_question}"
+            else:
+                # Continue existing assessment
+                current_assessment = assessment_manager.active_assessments.get(session_id)
+                if current_assessment and current_assessment.responses:
+                    last_question_id = "general_response"  # Placeholder
+                    result = assessment_manager.process_response(
+                        session_id, last_question_id, chat_request.message
+                    )
+                    
+                    if result.get("follow_up"):
+                        assessment_system_prompt += f"\n\nFOLLOW-UP QUESTION: {result['follow_up']}"
+                    elif result.get("next_question"):
+                        assessment_system_prompt += f"\n\nNEXT ASSESSMENT QUESTION: {result['next_question']}"
+                    
+                    # Add assessment progress
+                    completion = result.get("completion_percentage", 0)
+                    assessment_system_prompt += f"\n\nASSESSMENT PROGRESS: {completion:.1f}% complete"
+            
+            messages = [SystemMessage(content=assessment_system_prompt)]
             
             # Add pain area context if available
             pain_context = ""
@@ -328,6 +450,10 @@ async def simple_chat(
             
             response = await llm.ainvoke(messages)
             llm_response = response.content
+            
+        except Exception as e:
+            print(f"⚠️ LLM call failed: {e}")
+            llm_response = "I'm sorry, I'm having trouble processing your request right now. Please try again."
         
         # Store assistant message
         assistant_message = Message(

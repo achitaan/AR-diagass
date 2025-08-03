@@ -86,9 +86,16 @@ class ApiService {
         requestPayload.thread_id = request.thread_id;
       }
       
-      // Use different endpoints based on whether we have pain data
+      // Use different endpoints based on whether we have pain data:
+      // - /chat/simple: For basic messages (SimpleChatRequest → JSON response)
+      // - /chat/json: For messages with pain data (ChatRequest → JSON response)  
+      // - /chat/: For streaming responses (ChatRequest → Server-Sent Events)
       const hasPainData = (request.pain_areas && request.pain_areas.length > 0) || 
                          (request.drawing_data && request.drawing_data.length > 0);
+      
+      console.log('🔍 Has pain data?', hasPainData);
+      console.log('🔍 Pain areas:', request.pain_areas);
+      console.log('🔍 Drawing data:', request.drawing_data);
       
       // Only include pain data if using the full chat endpoint
       if (hasPainData) {
@@ -103,7 +110,8 @@ class ApiService {
         }
       }
       
-      const endpoint = hasPainData ? '/chat' : '/chat/simple';
+      const endpoint = hasPainData ? '/chat/json' : '/chat/simple';
+      console.log('🎯 Selected endpoint:', endpoint);
       
       console.log('🚀 Sending message to backend:', requestPayload);
       console.log('📡 API Base URL:', this.baseUrl);
@@ -139,9 +147,27 @@ class ApiService {
         throw new Error(errorMessage);
       }
 
-      const data: ChatResponse = await response.json();
-      console.log('✅ Received response from backend:', data);
-      return data;
+      // Check if response is JSON or streaming
+      const contentType = response.headers.get('content-type') || '';
+      console.log('📋 Content-Type:', contentType);
+      
+      if (contentType.includes('text/event-stream')) {
+        throw new Error('Received streaming response but expected JSON. Check backend endpoint routing.');
+      }
+      
+      // Get response text first to debug parsing issues
+      const responseText = await response.text();
+      console.log('📄 Raw response text:', responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
+      
+      try {
+        const data: ChatResponse = JSON.parse(responseText);
+        console.log('✅ Received response from backend:', data);
+        return data;
+      } catch (parseError) {
+        console.error('❌ JSON Parse Error:', parseError);
+        console.error('📄 Response that failed to parse:', responseText);
+        throw new Error(`Failed to parse response as JSON: ${parseError}`);
+      }
       
     } catch (error) {
       console.error('❌ API Error:', error);
