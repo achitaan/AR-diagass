@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Plus, User, Search, Menu, MessageCircle } from 'lucide-react-native';
+import { Plus, Search, MessageCircle, Send } from 'lucide-react-native';
 import { useThreads } from '@/hooks/use-threads-store';
 import { ThreadListCard } from '@/components/ThreadListCard';
 import { ActionButton } from '@/components/ActionButton';
@@ -23,9 +23,9 @@ import { BackendTest } from '@/components/BackendTest';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, fontWeight, spacing } from '@/constants/theme';
 
-const suggestedPrompts = [
+const examplePrompts = [
     "Help me describe my pain",
-    "Track daily symptoms",
+    "Track daily symptoms", 
     "Pain intensity scale",
     "Exercise recommendations",
     "Sleep quality impact",
@@ -95,6 +95,14 @@ export default function HomeScreen() {
         router.push('/session');
     };
 
+    const handleAskSubmit = () => {
+        if (searchQuery.trim()) {
+            createThread(searchQuery.trim());
+            setSearchQuery(""); // Clear the input
+            router.push('/session');
+        }
+    };
+
     const handlePromptCancel = () => {
         setShowPrompt(false);
     };
@@ -137,34 +145,33 @@ export default function HomeScreen() {
             {/* Header */}
             <SafeAreaView style={styles.header}>
                 <View style={styles.headerContent}>
-                    <Pressable style={styles.headerButton}>
-                        <Menu size={20} color={colors.primary} />
-                    </Pressable>
-                    <Text style={styles.headerTitle}>AI Assistant</Text>
-                    <Pressable
-                        style={styles.headerButton}
-                        onPress={handleNewSession}
-                    >
-                        <Plus size={20} color={colors.primary} />
-                    </Pressable>
+                    <Text style={styles.headerTitle}>PainAR</Text>
                 </View>
 
-                {/* Search Bar */}
+                {/* Ask Me Anything Input */}
                 <View style={styles.searchContainer}>
-                    <Search size={16} color={colors.textSecondary} style={styles.searchIcon} />
+                    <Search size={18} color={colors.primary} style={styles.searchIcon} />
                     <TextInput
-                        placeholder="Ask me anything..."
+                        placeholder="Ask me anything about your pain or symptoms..."
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         style={styles.searchInput}
                         placeholderTextColor={colors.textSecondary}
+                        onSubmitEditing={handleAskSubmit}
+                        returnKeyType="send"
+                        multiline={false}
                     />
+                    {searchQuery.trim() && (
+                        <Pressable style={styles.sendButton} onPress={handleAskSubmit}>
+                            <Send size={16} color={colors.primary} />
+                        </Pressable>
+                    )}
                 </View>
             </SafeAreaView>
 
-            {/* Suggested Prompts */}
+            {/* Example Prompts */}
             <View style={styles.promptsSection}>
-                <Text style={styles.sectionTitle}>SUGGESTED PROMPTS</Text>
+                <Text style={styles.sectionTitle}>EXAMPLE PROMPTS</Text>
                 <ScrollView
                     ref={scrollRef}
                     horizontal
@@ -172,7 +179,7 @@ export default function HomeScreen() {
                     style={styles.promptsScrollView}
                     contentContainerStyle={styles.promptsContent}
                 >
-                    {suggestedPrompts.map((prompt, index) => (
+                    {examplePrompts.map((prompt, index) => (
                         <Pressable
                             key={index}
                             style={styles.promptButton}
@@ -226,22 +233,18 @@ export default function HomeScreen() {
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyTitle}>No Conversations Yet</Text>
                             <Text style={styles.emptyText}>
-                                Start a new conversation to track and document your pain.
+                                Ask anything about your pain using the search bar above to start your first conversation.
                             </Text>
                         </View>
                     }
                 />
             </View>
 
-            {/* Bottom Action Button */}
+            {/* Bottom Section - Keep minimal or remove */}
             <SafeAreaView style={styles.bottomSection}>
-                <Pressable
-                    style={styles.newConversationButton}
-                    onPress={handleNewSession}
-                >
-                    <Plus size={20} color="#fff" style={styles.buttonIcon} />
-                    <Text style={styles.buttonText}>Start New Conversation</Text>
-                </Pressable>
+                <Text style={styles.bottomHint}>
+                    💡 Try the example prompts above or ask anything about your pain
+                </Text>
             </SafeAreaView>
 
             <CustomPrompt
@@ -276,8 +279,7 @@ const styles = StyleSheet.create({
         borderBottomColor: '#e9d5ff', // purple-100 equivalent
     },
     headerContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
         marginBottom: spacing.md,
     },
@@ -287,35 +289,52 @@ const styles = StyleSheet.create({
         color: colors.primary,
         textAlign: 'center',
     },
-    headerButton: {
-        width: 40,
-        height: 40,
-        borderRadius: borderRadius.full,
-        backgroundColor: 'rgba(147, 51, 234, 0.1)', // purple-50 equivalent
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     searchContainer: {
         position: 'relative',
         marginTop: spacing.sm,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 5,
     },
     searchIcon: {
         position: 'absolute',
         left: spacing.md,
         top: '50%',
-        transform: [{ translateY: -8 }],
+        transform: [{ translateY: -9 }],
         zIndex: 1,
     },
     searchInput: {
-        height: 48,
-        backgroundColor: '#f3e8ff', // purple-50 equivalent
-        borderRadius: 24,
+        height: 52,
+        backgroundColor: '#ffffff',
+        borderRadius: 26,
         paddingLeft: 48,
-        paddingRight: spacing.md,
+        paddingRight: 56, // Extra space for send button
         fontSize: fontSize.md,
-        color: '#374151', // gray-700
-        borderWidth: 1,
-        borderColor: '#c4b5fd', // purple-200 equivalent
+        color: '#1f2937', // darker text
+        borderWidth: 2,
+        borderColor: '#d1d5db',
+        fontWeight: fontWeight.medium,
+        textAlignVertical: 'center',
+    },
+    sendButton: {
+        position: 'absolute',
+        right: 10,
+        top: '50%',
+        transform: [{ translateY: -16 }],
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1,
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 3,
     },
     promptsSection: {
         backgroundColor: 'rgba(255, 255, 255, 0.6)',
@@ -474,6 +493,21 @@ const styles = StyleSheet.create({
         color: '#6b7280',
         textAlign: 'center',
         lineHeight: 22,
+    },
+    bottomHint: {
+        fontSize: fontSize.sm,
+        color: '#7c3aed',
+        textAlign: 'center',
+        fontWeight: fontWeight.medium,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
+        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+        marginHorizontal: spacing.lg,
+        marginBottom: spacing.md,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e9d5ff',
+        lineHeight: 20,
     },
     modalOverlay: {
         position: 'absolute',

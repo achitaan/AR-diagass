@@ -3,6 +3,7 @@ Chat API Endpoint with Server-Sent Events
 
 This module provides the chat endpoint that processes user messages
 and streams assistant responses using server-sent events for real-time interaction.
+Includes comprehensive injury assessment capabilities.
 """
 
 import json
@@ -20,9 +21,25 @@ from app.db.models import Embedding, Message, MessageRole, Thread
 from app.db.vector import PGVectorRetriever
 from app.services.rag import build_chain
 from app.settings import settings
+from app.prompts import assessment_manager, injury_assessment
 
 # Create router for chat endpoints
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+class PainArea(BaseModel):
+    """Model for pain area data."""
+    body_part: str
+    pain_level: int  # 0-10 scale
+    x: float
+    y: float
+
+
+class DrawingData(BaseModel):
+    """Model for drawing path data."""
+    path_points: list[dict]  # List of x,y coordinates
+    pain_level: int
+    body_parts_affected: list[str]
 
 
 class ChatRequest(BaseModel):
@@ -30,6 +47,8 @@ class ChatRequest(BaseModel):
     thread_id: Optional[UUID] = None
     message: str
     svg_path: Optional[str] = None
+    pain_areas: Optional[list[PainArea]] = None
+    drawing_data: Optional[list[DrawingData]] = None
 
 
 class SimpleChatRequest(BaseModel):
@@ -240,16 +259,72 @@ async def simple_chat(
                 max_tokens=512
             )
             
-            # Create a medical AI system prompt
+            # Create a comprehensive medical AI system prompt with structured assessment
             from langchain.schema import SystemMessage, HumanMessage
             
-            messages = [
-                SystemMessage(content="""You are a medical AI assistant specializing in pain management and healthcare education. 
-                You provide evidence-based information about pain assessment, treatment options, and patient education.
-                You are designed to work with AR (Augmented Reality) applications for pain education.
-                Always recommend consulting healthcare professionals for diagnosis and treatment."""),
-                HumanMessage(content=chat_request.message)
-            ]
+            # Get the comprehensive system prompt from our assessment system
+            assessment_system_prompt = injury_assessment.system_prompt
+            
+            # Check if this is a new conversation that should start an assessment
+            session_id = str(thread_uuid)
+            is_new_assessment = session_id not in assessment_manager.active_assessments
+            
+            if is_new_assessment:
+                # Start a new assessment
+                assessment_manager.start_assessment(
+                    user_id="current_user",  # In a real app, get from authentication
+                    session_id=session_id,
+                    initial_complaint=chat_request.message
+                )
+                
+                # Get the first assessment question
+                next_question = assessment_manager.get_next_question(session_id)
+                if next_question:
+                    assessment_system_prompt += f"\n\nFIRST ASSESSMENT QUESTION TO ASK: {next_question}"
+            else:
+                # Continue existing assessment
+                # Try to identify which question was just answered
+                current_assessment = assessment_manager.active_assessments.get(session_id)
+                if current_assessment and current_assessment.responses:
+                    # Process the latest response (this is a simplified approach)
+                    # In a real implementation, you'd track which question was asked
+                    last_question_id = "general_response"  # Placeholder
+                    result = assessment_manager.process_response(
+                        session_id, last_question_id, chat_request.message
+                    )
+                    
+                    if result.get("follow_up"):
+                        assessment_system_prompt += f"\n\nFOLLOW-UP QUESTION: {result['follow_up']}"
+                    elif result.get("next_question"):
+                        assessment_system_prompt += f"\n\nNEXT ASSESSMENT QUESTION: {result['next_question']}"
+                    
+                    # Add assessment progress
+                    completion = result.get("completion_percentage", 0)
+                    assessment_system_prompt += f"\n\nASSESSMENT PROGRESS: {completion:.1f}% complete"
+            
+            messages = [SystemMessage(content=assessment_system_prompt)]
+            
+            # Add pain area context if available
+            pain_context = ""
+            if chat_request.pain_areas and len(chat_request.pain_areas) > 0:
+                pain_context += "\n\nCurrent Pain Assessment Data:\n"
+                for pain_area in chat_request.pain_areas:
+                    pain_context += f"- {pain_area.body_part}: Pain level {pain_area.pain_level}/10\n"
+                pain_context += "\nPlease reference these specific areas in your response and ask relevant follow-up questions about these marked regions."
+            
+            if chat_request.drawing_data and len(chat_request.drawing_data) > 0:
+                pain_context += "\n\nUser has drawn pain areas on the body diagram with the following information:\n"
+                for drawing in chat_request.drawing_data:
+                    affected_parts = ", ".join(drawing.body_parts_affected)
+                    pain_context += f"- Drawn area affecting: {affected_parts} (Pain level: {drawing.pain_level}/10)\n"
+                pain_context += "\nUse this visual pain mapping to ask more targeted questions about the specific anatomical regions marked."
+            
+            # Create the human message with context
+            human_message_content = chat_request.message
+            if pain_context:
+                human_message_content = f"{chat_request.message}\n{pain_context}"
+            
+            messages.append(HumanMessage(content=human_message_content))
             
             response = await llm.ainvoke(messages)
             llm_response = response.content
@@ -371,3 +446,85 @@ async def chat_endpoint(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+
+@router.get("/assessment/{session_id}")
+async def get_assessment_summary(
+    session_id: str,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Get comprehensive assessment summary for a session.
+    
+    Args:
+        session_id: Assessment session identifier
+        session: Database session dependency
+        
+    Returns:
+        Comprehensive assessment summary with key findings and recommendations
+    """
+    try:
+        summary = assessment_manager.get_assessment_summary(session_id)
+        
+        if not summary:
+            raise HTTPException(
+                status_code=404, 
+                detail="Assessment session not found"
+            )
+        
+        return summary
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to retrieve assessment summary: {str(e)}"
+        )
+
+
+@router.post("/assessment/{session_id}/export")
+async def export_assessment(
+    session_id: str,
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Export assessment data in a format suitable for medical review.
+    
+    Args:
+        session_id: Assessment session identifier
+        session: Database session dependency
+        
+    Returns:
+        Formatted assessment report for healthcare providers
+    """
+    try:
+        summary = assessment_manager.get_assessment_summary(session_id)
+        
+        if not summary:
+            raise HTTPException(
+                status_code=404, 
+                detail="Assessment session not found"
+            )
+        
+        # Format for medical review
+        medical_report = {
+            "patient_id": "REDACTED",  # Would be filled with actual patient ID
+            "assessment_date": summary["session_info"]["start_time"],
+            "assessment_duration": f"{summary['session_info']['duration_minutes']:.1f} minutes",
+            "completion_status": f"{summary['session_info']['completion_percentage']:.1f}% complete",
+            "priority_level": "High" if summary["session_info"]["priority_score"] > 15 else "Medium" if summary["session_info"]["priority_score"] > 5 else "Low",
+            "chief_complaint": summary["clinical_data"]["pain_assessment"],
+            "red_flags": summary["red_flags"],
+            "key_findings": summary["key_findings"],
+            "recommendations": summary["recommendations"],
+            "structured_data": summary["clinical_data"],
+            "assessment_tool": "PainAR v1.0",
+            "disclaimer": "This assessment was conducted using an AI-assisted tool and does not replace professional medical evaluation."
+        }
+        
+        return medical_report
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to export assessment: {str(e)}"
+        )

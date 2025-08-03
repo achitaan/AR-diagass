@@ -36,9 +36,24 @@ const generateUUID = () => {
   });
 };
 
+export interface PainArea {
+  body_part: string;
+  pain_level: number;  // 0-10 scale
+  x: number;
+  y: number;
+}
+
+export interface DrawingData {
+  path_points: Array<{x: number, y: number}>;
+  pain_level: number;
+  body_parts_affected: string[];
+}
+
 export interface ChatRequest {
   message: string;
   thread_id?: string;
+  pain_areas?: PainArea[];
+  drawing_data?: DrawingData[];
 }
 
 export interface ChatResponse {
@@ -69,6 +84,16 @@ class ApiService {
       
       if (request.thread_id && this.isValidUUID(request.thread_id)) {
         requestPayload.thread_id = request.thread_id;
+      }
+      
+      // Include pain areas if provided
+      if (request.pain_areas && request.pain_areas.length > 0) {
+        requestPayload.pain_areas = request.pain_areas;
+      }
+      
+      // Include drawing data if provided
+      if (request.drawing_data && request.drawing_data.length > 0) {
+        requestPayload.drawing_data = request.drawing_data;
       }
       
       console.log('🚀 Sending message to backend:', requestPayload);

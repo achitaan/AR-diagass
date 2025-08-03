@@ -119,45 +119,12 @@ export const ChatOverlay = ({ messages, visible, onSendMessage, messageStyle, mi
                         {isLoading && <TypingIndicator />}
                     </>
                 ) : (
-                    // Placeholder messages when no real messages exist
-                    <>
-                        <View style={[styles.messageBubble, styles.systemMessage, styles.placeholderMessage, messageStyle]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                I can see you&apos;re pointing to your shoulder area. Can you describe the type of pain you&apos;re experiencing?
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.userMessage, styles.placeholderMessage, messageStyle]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                It&apos;s a sharp pain that gets worse when I lift my arm
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.systemMessage, styles.placeholderMessage, messageStyle]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                That sounds like it could be related to your rotator cuff. How long have you been experiencing this pain?
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.userMessage, styles.placeholderMessage, messageStyle]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                About two weeks now, started after I went to the gym
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.systemMessage, styles.placeholderMessage, messageStyle]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                I see. Try marking the exact areas where you feel the pain on the camera view. This will help me better understand your condition.
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.userMessage, styles.placeholderMessage, messageStyle]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                Okay, I&apos;ll trace the painful areas now
-                            </Text>
-                        </View>
-                        {isLoading && <TypingIndicator />}
-                    </>
+                    // Welcome message when no messages exist
+                    <View style={[styles.messageBubble, styles.systemMessage, messageStyle]}>
+                        <Text style={styles.messageText}>
+                            Hello! I'm here to help you understand your pain and discomfort. Draw areas on the body where you feel pain, and I'll ask relevant questions to better assist you.
+                        </Text>
+                    </View>
                 )}
             </ScrollView>
             {/* Chat Input at the bottom */}

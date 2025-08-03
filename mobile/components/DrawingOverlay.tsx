@@ -203,19 +203,9 @@ export const DrawingOverlay: React.FC<DrawingOverlayProps> = ({
     if (tempDrawingPath && onPainLevelAssigned) {
       // Assign pain level to the enclosed area
       onPainLevelAssigned(level, currentClosedLoop);
-      
-      // Complete the drawing with pain level
-      const completedDrawing = {
-        ...tempDrawingPath,
-        painLevel: level,
-      };
-      
-      if (onDrawingComplete) {
-        onDrawingComplete(completedDrawing);
-      }
     }
     
-    // Clean up and hide drawing
+    // Clean up and hide drawing (no longer save the drawing itself)
     setShowPainPicker(false);
     setCurrentClosedLoop([]);
     setTempDrawingPath(null);
@@ -236,37 +226,63 @@ export const DrawingOverlay: React.FC<DrawingOverlayProps> = ({
       <Modal
         visible={showPainPicker}
         transparent={true}
-        animationType="fade"
+        animationType="slide"
         onRequestClose={handleCancelPainPicker}
       >
         <View style={styles.painPickerOverlay}>
           <View style={styles.painPickerContainer}>
-            <Text style={styles.painPickerTitle}>
-              Pain Level Assessment
-            </Text>
-            <Text style={styles.painPickerSubtitle}>
-              Select pain level for the marked area (0 = no pain, 10 = severe pain)
-            </Text>
-            <View style={styles.painLevelGrid}>
-              {painLevels.map(level => (
-                <Pressable
-                  key={level}
-                  style={[
-                    styles.painLevelButton,
-                    { backgroundColor: getPainColor(level) }
-                  ]}
-                  onPress={() => handlePainLevelSelect(level)}
-                >
-                  <Text style={styles.painLevelText}>{level}</Text>
-                </Pressable>
-              ))}
+            <View style={styles.painPickerHeader}>
+              <Text style={styles.painPickerTitle}>
+                Pain Assessment
+              </Text>
+              <Text style={styles.painPickerSubtitle}>
+                Rate your pain intensity in the marked area
+              </Text>
             </View>
-            <Pressable 
-              style={styles.cancelButton}
-              onPress={handleCancelPainPicker}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
+            
+            <View style={styles.painScaleContainer}>
+              <View style={styles.painScaleLabels}>
+                <Text style={styles.painScaleLabel}>No Pain</Text>
+                <Text style={styles.painScaleLabel}>Moderate</Text>
+                <Text style={styles.painScaleLabel}>Severe</Text>
+              </View>
+              
+              <View style={styles.painLevelGrid}>
+                {painLevels.map(level => (
+                  <Pressable
+                    key={level}
+                    style={[
+                      styles.painLevelButton,
+                      { backgroundColor: getPainColor(level) }
+                    ]}
+                    onPress={() => handlePainLevelSelect(level)}
+                    android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
+                  >
+                    <Text style={[
+                      styles.painLevelText,
+                      { color: level < 5 ? '#000' : '#fff' }
+                    ]}>
+                      {level}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              
+              <View style={styles.painScaleNumbers}>
+                <Text style={styles.painScaleNumber}>0</Text>
+                <Text style={styles.painScaleNumber}>5</Text>
+                <Text style={styles.painScaleNumber}>10</Text>
+              </View>
+            </View>
+
+            <View style={styles.painPickerActions}>
+              <Pressable 
+                style={[styles.actionButton, styles.cancelButton]}
+                onPress={handleCancelPainPicker}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -281,34 +297,6 @@ export const DrawingOverlay: React.FC<DrawingOverlayProps> = ({
     <>
       <View style={styles.container} {...panResponder.panHandlers}>
         <Svg width={SCREEN_WIDTH} height={SCREEN_HEIGHT} style={styles.svg}>
-          {/* Render existing drawings */}
-          {drawings.map(drawing => (
-            <React.Fragment key={drawing.id}>
-              {drawing.isClosedLoop ? (
-                <>
-                  {/* Filled area for closed loops */}
-                  <Polygon
-                    points={pointsToPolygonString(drawing.points)}
-                    fill={getPainColor(drawing.painLevel)}
-                    fillOpacity={0.3}
-                    stroke={getPainColor(drawing.painLevel)}
-                    strokeWidth={2}
-                  />
-                </>
-              ) : (
-                <Path
-                  d={pathToSVGPath(drawing.points)}
-                  stroke={getPainColor(drawing.painLevel)}
-                  strokeWidth={4}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                  opacity={0.8}
-                />
-              )}
-            </React.Fragment>
-          ))}
-          
           {/* Render current drawing */}
           {currentPath.length > 1 && (
             <Path
@@ -432,5 +420,46 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 16,
     fontWeight: '600',
+  },
+  painPickerHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  painScaleContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  painScaleLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 12,
+    paddingHorizontal: 10,
+  },
+  painScaleLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  painScaleNumbers: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 12,
+    paddingHorizontal: 25,
+  },
+  painScaleNumber: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: 'bold',
+  },
+  painPickerActions: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  actionButton: {
+    minWidth: 120,
+    alignItems: 'center',
   },
 });

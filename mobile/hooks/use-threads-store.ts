@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Thread, Message, DrawingStroke, DepthLevel } from '@/types/thread';
 import { colors } from '@/constants/colors';
-import { apiService, ChatRequest } from '@/services/api';
+import { apiService, ChatRequest, PainArea, DrawingData } from '@/services/api';
 
 const STORAGE_KEY = 'pain-tracker-threads';
 
@@ -94,7 +94,12 @@ export const [ThreadsProvider, useThreads] = createContextHook(() => {
   };
 
   // Add message to current thread
-  const addMessage = async (content: string, isUser: boolean) => {
+  const addMessage = async (
+    content: string, 
+    isUser: boolean, 
+    painAreas?: PainArea[], 
+    drawingData?: DrawingData[]
+  ) => {
     if (!currentThreadId) return;
     
     // Create and add user message immediately for responsive UI
@@ -127,7 +132,9 @@ export const [ThreadsProvider, useThreads] = createContextHook(() => {
         
         const chatRequest: ChatRequest = {
           message: content,
-          thread_id: currentThreadId
+          thread_id: currentThreadId,
+          pain_areas: painAreas,
+          drawing_data: drawingData
         };
         
         const response = await apiService.sendMessage(chatRequest);

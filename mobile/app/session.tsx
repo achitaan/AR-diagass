@@ -8,6 +8,7 @@ import {
     PanResponder,
     Dimensions
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
@@ -26,6 +27,7 @@ import {
     Edit3,
     Undo,
     Redo,
+    Home,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useThreads } from '@/hooks/use-threads-store';
@@ -81,6 +83,33 @@ export default function SessionScreen() {
     const { getCurrentThread, addMessage, addDrawingStroke } = useThreads();
     const currentThread = getCurrentThread();
 
+    // Persistence functions for pain areas
+    const savePainAreas = async (areas: Map<string, number>) => {
+        try {
+            const painData = JSON.stringify(Array.from(areas.entries()));
+            await AsyncStorage.setItem('painAreas', painData);
+        } catch (error) {
+            console.error('Failed to save pain areas:', error);
+        }
+    };
+
+    const loadPainAreas = async () => {
+        try {
+            const painData = await AsyncStorage.getItem('painAreas');
+            if (painData) {
+                const areas = new Map<string, number>(JSON.parse(painData));
+                setPainAreas(areas);
+            }
+        } catch (error) {
+            console.error('Failed to load pain areas:', error);
+        }
+    };
+
+    // Load pain areas on component mount
+    useEffect(() => {
+        loadPainAreas();
+    }, []);
+
     // Real TensorFlow pose detection
     const {
         poses, 
@@ -115,7 +144,26 @@ export default function SessionScreen() {
     const handleSendMessage = async (message: string) => {
         setIsLoadingMessage(true);
         try {
-            await addMessage(message, true);
+            // Convert pain areas to the format expected by the backend
+            const painAreasData = Array.from(painAreas.entries()).map(([bodyPart, painLevel]) => {
+                // Find the corresponding skeleton node to get coordinates
+                const node = skeletonNodes.find(n => n.bodyPart === bodyPart);
+                return {
+                    body_part: bodyPart,
+                    pain_level: painLevel,
+                    x: node?.x || 0,
+                    y: node?.y || 0
+                };
+            });
+
+            // Convert drawing data to the format expected by the backend
+            const drawingData = drawingPaths.map(path => ({
+                path_points: path.points.map(p => ({ x: p.x, y: p.y })),
+                pain_level: path.painLevel || 0,
+                body_parts_affected: path.bodyPart ? [path.bodyPart] : []
+            }));
+
+            await addMessage(message, true, painAreasData, drawingData);
         } catch (error) {
             console.error('Failed to send message:', error);
         } finally {
@@ -158,8 +206,14 @@ export default function SessionScreen() {
     };
 
     const handleCheckAction = () => {
-        // TODO: Implement check/submit functionality
+        // Save progress
+        // TODO: Save pain assessment data to backend
+        console.log('Saving pain assessment...', Array.from(painAreas.entries()));
+        
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        
+        // Navigate to home
+        router.replace('/');
     };
 
     const handleDepthUp = () => {
@@ -208,11 +262,56 @@ export default function SessionScreen() {
             }
         });
         setPainAreas(newPainAreas);
+        
+        // Save to persistent storage
+        savePainAreas(newPainAreas);
     };
 
     // Point-in-polygon algorithm to check if nodes are inside the drawn area
     const findNodesInEnclosedArea = (enclosedArea: DrawingPoint[], nodes: DrawingPoint[]): DrawingPoint[] => {
-        return nodes.filter(node => isPointInPolygon(node, enclosedArea));
+        // Debug logging
+        console.log('🎯 Finding nodes in enclosed area...');
+        console.log('📐 Screen dimensions:', { width: SCREEN_WIDTH, height: SCREEN_HEIGHT });
+        console.log('🔸 Drawing polygon points:', enclosedArea.slice(0, 3)); // First 3 points
+        console.log('🎭 Available skeleton nodes:', nodes.slice(0, 3)); // First 3 nodes
+        
+        const matchedNodes = nodes.filter(node => {
+            // The skeleton is positioned in a container that's centered and has height SCREEN_HEIGHT * 0.8
+            // The drawing overlay covers the full screen
+            // We need to account for this difference in coordinate systems
+            
+            // Calculate the offset of the skeleton container
+            // The walkingAnimationBackground is centered vertically
+            const containerHeight = SCREEN_HEIGHT * 0.8;
+            const containerTopOffset = (SCREEN_HEIGHT - containerHeight) / 2;
+            
+            console.log(`🔍 Checking node ${node.bodyPart} at (${node.x?.toFixed(0)}, ${node.y?.toFixed(0)})`);
+            console.log(`📏 Container offset: ${containerTopOffset.toFixed(0)}px`);
+            
+            // Transform drawing coordinates to skeleton coordinate system
+            const transformedPolygon = enclosedArea.map(point => ({
+                x: point.x,
+                y: point.y - containerTopOffset, // Adjust for container vertical offset
+                bodyPart: point.bodyPart,
+                painLevel: point.painLevel
+            }));
+            
+            // Transform skeleton node to match the drawing coordinate system for comparison
+            const adjustedNode = {
+                x: node.x,
+                y: node.y, // Keep skeleton Y as is since we adjusted the polygon instead
+                bodyPart: node.bodyPart,
+                painLevel: node.painLevel
+            };
+            
+            const isInside = isPointInPolygon(adjustedNode, transformedPolygon);
+            console.log(`✅ Node ${node.bodyPart} ${isInside ? 'IS' : 'NOT'} inside polygon`);
+            
+            return isInside;
+        });
+        
+        console.log(`🎯 Found ${matchedNodes.length} nodes in enclosed area:`, matchedNodes.map(n => n.bodyPart));
+        return matchedNodes;
     };
 
     const isPointInPolygon = (point: DrawingPoint, polygon: DrawingPoint[]): boolean => {
