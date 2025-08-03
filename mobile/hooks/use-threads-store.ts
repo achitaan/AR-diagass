@@ -83,10 +83,17 @@ export const [ThreadsProvider, useThreads] = createContextHook(() => {
   };
 
   // Delete a thread
-  const deleteThread = (threadId: string) => {
+  const deleteThread = async (threadId: string) => {
     const updatedThreads = threads.filter(thread => thread.id !== threadId);
     setThreads(updatedThreads);
     syncMutation.mutate(updatedThreads);
+    
+    // Clean up associated pain area data
+    try {
+      await AsyncStorage.removeItem(`painAreas_${threadId}`);
+    } catch (error) {
+      console.error('Failed to clean up pain areas for deleted thread:', error);
+    }
     
     if (currentThreadId === threadId) {
       setCurrentThreadId(null);

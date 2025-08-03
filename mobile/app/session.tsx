@@ -83,32 +83,63 @@ export default function SessionScreen() {
     const { getCurrentThread, addMessage, addDrawingStroke } = useThreads();
     const currentThread = getCurrentThread();
 
-    // Persistence functions for pain areas
+    // Persistence functions for pain areas - now per thread
     const savePainAreas = async (areas: Map<string, number>) => {
         try {
-            const painData = JSON.stringify(Array.from(areas.entries()));
-            await AsyncStorage.setItem('painAreas', painData);
+            if (currentThread?.id) {
+                const painData = JSON.stringify(Array.from(areas.entries()));
+                await AsyncStorage.setItem(`painAreas_${currentThread.id}`, painData);
+            }
         } catch (error) {
             console.error('Failed to save pain areas:', error);
         }
     };
 
-    const loadPainAreas = async () => {
+    const loadPainAreas = async (threadId: string) => {
         try {
-            const painData = await AsyncStorage.getItem('painAreas');
+            const painData = await AsyncStorage.getItem(`painAreas_${threadId}`);
             if (painData) {
                 const areas = new Map<string, number>(JSON.parse(painData));
                 setPainAreas(areas);
+            } else {
+                // Clear pain areas for new threads
+                setPainAreas(new Map());
             }
         } catch (error) {
             console.error('Failed to load pain areas:', error);
+            setPainAreas(new Map());
         }
     };
 
-    // Load pain areas on component mount
+    // Clear pain areas for current thread
+    const clearPainAreas = async () => {
+        try {
+            if (currentThread?.id) {
+                await AsyncStorage.removeItem(`painAreas_${currentThread.id}`);
+            }
+            setPainAreas(new Map());
+        } catch (error) {
+            console.error('Failed to clear pain areas:', error);
+        }
+    };
+
+    // Debug function to log current thread and pain areas
+    const debugPainAreas = () => {
+        console.log('🔍 Debug Pain Areas:');
+        console.log('Current Thread ID:', currentThread?.id);
+        console.log('Pain Areas Count:', painAreas.size);
+        console.log('Pain Areas:', Array.from(painAreas.entries()));
+    };
+
+    // Load pain areas when thread changes
     useEffect(() => {
-        loadPainAreas();
-    }, []);
+        if (currentThread?.id) {
+            loadPainAreas(currentThread.id);
+        } else {
+            // No thread selected, clear pain areas
+            setPainAreas(new Map());
+        }
+    }, [currentThread?.id]);
 
     // Real TensorFlow pose detection
     const {

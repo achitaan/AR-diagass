@@ -86,21 +86,30 @@ class ApiService {
         requestPayload.thread_id = request.thread_id;
       }
       
-      // Include pain areas if provided
-      if (request.pain_areas && request.pain_areas.length > 0) {
-        requestPayload.pain_areas = request.pain_areas;
+      // Use different endpoints based on whether we have pain data
+      const hasPainData = (request.pain_areas && request.pain_areas.length > 0) || 
+                         (request.drawing_data && request.drawing_data.length > 0);
+      
+      // Only include pain data if using the full chat endpoint
+      if (hasPainData) {
+        // Include pain areas if provided
+        if (request.pain_areas && request.pain_areas.length > 0) {
+          requestPayload.pain_areas = request.pain_areas;
+        }
+        
+        // Include drawing data if provided
+        if (request.drawing_data && request.drawing_data.length > 0) {
+          requestPayload.drawing_data = request.drawing_data;
+        }
       }
       
-      // Include drawing data if provided
-      if (request.drawing_data && request.drawing_data.length > 0) {
-        requestPayload.drawing_data = request.drawing_data;
-      }
+      const endpoint = hasPainData ? '/chat' : '/chat/simple';
       
       console.log('🚀 Sending message to backend:', requestPayload);
       console.log('📡 API Base URL:', this.baseUrl);
-      console.log('🎯 Full endpoint:', `${this.baseUrl}/chat/simple`);
+      console.log('🎯 Full endpoint:', `${this.baseUrl}${endpoint}`);
       
-      const response = await fetch(`${this.baseUrl}/chat/simple`, {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
