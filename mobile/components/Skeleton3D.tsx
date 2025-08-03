@@ -42,10 +42,22 @@ interface Skeleton3DProps {
 
 // Define body part connections for skeleton lines - Enhanced for medical diagnosis
 const SKELETON_CONNECTIONS = [
-  // Head and neck connections
+  // Detailed head and facial connections
   ['nose', 'left_eye'], ['nose', 'right_eye'],
   ['left_eye', 'left_ear'], ['right_eye', 'right_ear'],
-  ['nose', 'neck_base'],
+  ['nose', 'forehead'], ['forehead', 'left_temple'], ['forehead', 'right_temple'],
+  ['left_temple', 'left_ear'], ['right_temple', 'right_ear'],
+  ['nose', 'left_nostril'], ['nose', 'right_nostril'],
+  ['nose', 'mouth'], ['mouth', 'left_lip'], ['mouth', 'right_lip'],
+  ['mouth', 'chin'], ['chin', 'left_jaw'], ['chin', 'right_jaw'],
+  ['left_jaw', 'left_ear'], ['right_jaw', 'right_ear'],
+  ['left_eye', 'left_eyebrow'], ['right_eye', 'right_eyebrow'],
+  ['left_eyebrow', 'forehead'], ['right_eyebrow', 'forehead'],
+  ['left_eye', 'left_cheek'], ['right_eye', 'right_cheek'],
+  ['left_cheek', 'mouth'], ['right_cheek', 'mouth'],
+  
+  // Neck connections
+  ['chin', 'neck_base'],
   ['left_ear', 'neck_left'], ['right_ear', 'neck_right'],
   ['neck_left', 'neck_base'], ['neck_right', 'neck_base'],
   
@@ -98,6 +110,12 @@ const SKELETON_CONNECTIONS = [
   
   // Right leg connections
   ['right_hip', 'right_thigh'],
+  ['right_thigh', 'right_knee'],
+  ['right_knee', 'right_shin'],
+  ['right_shin', 'right_ankle'],
+  ['right_ankle', 'right_foot'],
+  ['right_foot', 'right_big_toe'], ['right_foot', 'right_small_toe'],
+];
   ['right_thigh', 'right_knee'],
   ['right_knee', 'right_shin'],
   ['right_shin', 'right_ankle'],
