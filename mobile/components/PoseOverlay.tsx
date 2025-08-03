@@ -32,7 +32,7 @@ export const PoseOverlay: React.FC<PoseOverlayProps> = ({
   style, 
   useRealTracking = false,
   mode = 'both',
-  showDebugPoints = true
+  showDebugPoints = false
 }) => {
   
   // Human detection hook

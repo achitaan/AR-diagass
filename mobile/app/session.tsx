@@ -52,6 +52,7 @@ interface DrawingPath {
     points: DrawingPoint[];
     bodyPart?: string;
     painLevel?: number;
+    isClosedLoop?: boolean;
 }
 
 type DepthLevel = 'skin' | 'muscle' | 'deep';
@@ -70,10 +71,12 @@ export default function SessionScreen() {
     const [isLoadingMessage, setIsLoadingMessage] = useState(false);
     const [visualizationMode, setVisualizationMode] = useState<VisualizationMode>('none');
     const [showLabels, setShowLabels] = useState(true);
-    const [cameraEnabled, setCameraEnabled] = useState(true);
+    const [cameraEnabled, setCameraEnabled] = useState(false);
     const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
     const [showNodes, setShowNodes] = useState(false);
     const [isDrawingMode, setIsDrawingMode] = useState(false);
+    const [painAreas, setPainAreas] = useState<Map<string, number>>(new Map()); // Track pain levels for body parts
+    const [skeletonNodes, setSkeletonNodes] = useState<DrawingPoint[]>([]); // Track skeleton node positions
 
     const { getCurrentThread, addMessage, addDrawingStroke } = useThreads();
     const currentThread = getCurrentThread();
@@ -177,16 +180,50 @@ export default function SessionScreen() {
 
     // Drawing functionality
     const handleDrawingComplete = (path: DrawingPath) => {
-        const newPaths = [...drawingPaths, path];
-        setDrawingPaths(newPaths);
+        // Only add to drawing paths if it has a pain level assigned
+        if (path.painLevel !== undefined) {
+            const newPaths = [...drawingPaths, path];
+            setDrawingPaths(newPaths);
+            
+            // Update history for undo/redo
+            const newHistory = drawingHistory.slice(0, historyIndex + 1);
+            newHistory.push(newPaths);
+            setDrawingHistory(newHistory);
+            setHistoryIndex(newHistory.length - 1);
+            
+            addDrawingStroke(path.points, currentDepth);
+        }
+    };
+
+    // Handle pain level assignment from drawing overlay
+    const handlePainLevelAssigned = (painLevel: number, enclosedArea: DrawingPoint[]) => {
+        // Find skeleton nodes that are inside the enclosed area
+        const affectedNodes = findNodesInEnclosedArea(enclosedArea, skeletonNodes);
         
-        // Update history for undo/redo
-        const newHistory = drawingHistory.slice(0, historyIndex + 1);
-        newHistory.push(newPaths);
-        setDrawingHistory(newHistory);
-        setHistoryIndex(newHistory.length - 1);
-        
-        addDrawingStroke(path.points, currentDepth);
+        // Update pain levels for affected nodes
+        const newPainAreas = new Map(painAreas);
+        affectedNodes.forEach(node => {
+            if (node.bodyPart) {
+                newPainAreas.set(node.bodyPart, painLevel);
+            }
+        });
+        setPainAreas(newPainAreas);
+    };
+
+    // Point-in-polygon algorithm to check if nodes are inside the drawn area
+    const findNodesInEnclosedArea = (enclosedArea: DrawingPoint[], nodes: DrawingPoint[]): DrawingPoint[] => {
+        return nodes.filter(node => isPointInPolygon(node, enclosedArea));
+    };
+
+    const isPointInPolygon = (point: DrawingPoint, polygon: DrawingPoint[]): boolean => {
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            if (((polygon[i].y > point.y) !== (polygon[j].y > point.y)) &&
+                (point.x < (polygon[j].x - polygon[i].x) * (point.y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x)) {
+                inside = !inside;
+            }
+        }
+        return inside;
     };
 
     const handlePainLevelSelect = (bodyPart: string, painLevel: number) => {
@@ -288,6 +325,8 @@ export default function SessionScreen() {
                             isDrawingMode={isDrawingMode}
                             drawingPoints={drawingPaths.flatMap(path => path.points)}
                             onPainLevelSelect={handlePainLevelSelect}
+                            painAreas={painAreas}
+                            onNodesUpdate={setSkeletonNodes}
                         />
                     </View>
                 </View>
@@ -297,6 +336,7 @@ export default function SessionScreen() {
             <DrawingOverlay
                 isDrawingMode={isDrawingMode}
                 onDrawingComplete={handleDrawingComplete}
+                onPainLevelAssigned={handlePainLevelAssigned}
                 drawings={drawingPaths}
             />
 
