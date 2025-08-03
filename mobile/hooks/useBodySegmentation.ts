@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import { cameraWithTensors } from '@tensorflow/tfjs-react-native';
 import * as bodyPix from '@tensorflow-models/body-pix';
-import { Camera } from 'expo-camera';
+import { CameraView } from 'expo-camera';
 
 export function useBodySegmentation() {
   const [model, setModel] = useState<bodyPix.BodyPix | null>(null);
@@ -89,4 +89,4 @@ export function useBodySegmentation() {
   };
 }
 
-export const TensorCamera = cameraWithTensors(Camera);
+// TensorCamera is exported from useRealPoseDetection.ts to avoid conflicts

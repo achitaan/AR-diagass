@@ -179,10 +179,11 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'transparent',
+        backgroundColor: 'rgba(0, 0, 0, 0.05)', // Very subtle overlay
         justifyContent: 'flex-start',
         pointerEvents: 'box-none', // Allow touches to pass through to camera
         flexDirection: 'column',
+        zIndex: 1500, // Below top bar (2000) but above other content
     },
     messagesContainer: {
         flex: 1,

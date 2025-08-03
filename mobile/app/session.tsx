@@ -16,9 +16,16 @@ import {
     MicOff,
     Eye,
     EyeOff,
-    ArrowUpDown,
+    ArrowLeft,
+    Camera,
+    CameraOff,
     RotateCcw,
     RotateCw,
+    CheckCircle,
+    Circle,
+    Edit3,
+    Undo,
+    Redo,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useThreads } from '@/hooks/use-threads-store';
@@ -26,9 +33,26 @@ import { ChatOverlay } from '@/components/ChatOverlay';
 import { DepthToggle } from '@/components/DepthToggle';
 import { PoseOverlay } from '@/components/PoseOverlay';
 import { BodyPartMask } from '@/components/BodyPartMask';
+import { Skeleton3D } from '@/components/Skeleton3D';
+import { DrawingOverlay } from '@/components/DrawingOverlay';
 import { useRealPoseDetection, TensorCamera } from '@/hooks/useRealPoseDetection';
+import { useBodySegmentation } from '@/hooks/useBodySegmentation';
 import { colors } from '@/constants/colors';
 import { borderRadius, spacing, fontSize } from '@/constants/theme';
+
+interface DrawingPoint {
+    x: number;
+    y: number;
+    bodyPart?: string;
+    painLevel?: number;
+}
+
+interface DrawingPath {
+    id: string;
+    points: DrawingPoint[];
+    bodyPart?: string;
+    painLevel?: number;
+}
 
 type DepthLevel = 'skin' | 'muscle' | 'deep';
 type VisualizationMode = 'none' | 'muscles' | 'bodyParts';
@@ -40,11 +64,16 @@ export default function SessionScreen() {
     const [micEnabled, setMicEnabled] = useState(false);
     const [chatVisible, setChatVisible] = useState(true);
     const [currentDepth, setCurrentDepth] = useState<DepthLevel>('skin');
-    const [drawingPoints, setDrawingPoints] = useState<{ x: number, y: number }[]>([]);
+    const [drawingPaths, setDrawingPaths] = useState<DrawingPath[]>([]);
+    const [drawingHistory, setDrawingHistory] = useState<DrawingPath[][]>([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
     const [isLoadingMessage, setIsLoadingMessage] = useState(false);
     const [visualizationMode, setVisualizationMode] = useState<VisualizationMode>('none');
     const [showLabels, setShowLabels] = useState(true);
-    const [useRealTracking, setUseRealTracking] = useState(true);
+    const [cameraEnabled, setCameraEnabled] = useState(true);
+    const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
+    const [showNodes, setShowNodes] = useState(false);
+    const [isDrawingMode, setIsDrawingMode] = useState(false);
 
     const { getCurrentThread, addMessage, addDrawingStroke } = useThreads();
     const currentThread = getCurrentThread();
@@ -60,6 +89,13 @@ export default function SessionScreen() {
         stopTracking,
         generateDemoPose
     } = useRealPoseDetection();
+
+    // Body segmentation for real camera mode
+    const {
+        isModelReady: segmentationModelReady,
+        segmentation,
+        handleCameraStream: handleSegmentationStream
+    } = useBodySegmentation();
 
     const depthLevels: DepthLevel[] = ['skin', 'muscle', 'deep'];
 
@@ -86,9 +122,9 @@ export default function SessionScreen() {
 
     // Handle pose tracking state
     useEffect(() => {
-        if (isModelReady && useRealTracking) {
+        if (isModelReady && cameraEnabled) {
             startTracking();
-        } else if (isModelReady && !useRealTracking) {
+        } else if (isModelReady && !cameraEnabled) {
             stopTracking();
         }
         
@@ -97,7 +133,7 @@ export default function SessionScreen() {
                 stopTracking();
             }
         };
-    }, [isModelReady, useRealTracking]);
+    }, [isModelReady, cameraEnabled]);
 
     // Control handlers
     const handleMicToggle = () => {
@@ -113,9 +149,14 @@ export default function SessionScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     };
 
-    const handleTrackingToggle = () => {
-        setUseRealTracking(!useRealTracking);
+    const handleCameraToggle = () => {
+        setCameraEnabled(!cameraEnabled);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    };
+
+    const handleCheckAction = () => {
+        // TODO: Implement check/submit functionality
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     };
 
     const handleDepthUp = () => {
@@ -128,25 +169,52 @@ export default function SessionScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
 
-    // Drawing functionality
-    const handleDrawingTouch = (x: number, y: number) => {
-        const newPoint = { x, y };
-        setDrawingPoints(prev => [...prev, newPoint]);
-        addDrawingStroke([newPoint], currentDepth);
+    // Handle body part selection for walking animation
+    const handleBodyPartSelect = (partName: string) => {
+        setSelectedBodyPart(partName);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
 
-    const panResponder = PanResponder.create({
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (evt) => {
-            const { locationX, locationY } = evt.nativeEvent;
-            handleDrawingTouch(locationX, locationY);
-        },
-        onPanResponderMove: (evt) => {
-            const { locationX, locationY } = evt.nativeEvent;
-            handleDrawingTouch(locationX, locationY);
-        },
-        onPanResponderRelease: () => {},
-    });
+    // Drawing functionality
+    const handleDrawingComplete = (path: DrawingPath) => {
+        const newPaths = [...drawingPaths, path];
+        setDrawingPaths(newPaths);
+        
+        // Update history for undo/redo
+        const newHistory = drawingHistory.slice(0, historyIndex + 1);
+        newHistory.push(newPaths);
+        setDrawingHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+        
+        addDrawingStroke(path.points, currentDepth);
+    };
+
+    const handlePainLevelSelect = (bodyPart: string, painLevel: number) => {
+        // Update the last drawing path with pain level
+        setDrawingPaths(prev => {
+            const updated = [...prev];
+            const lastPath = updated[updated.length - 1];
+            if (lastPath) {
+                lastPath.bodyPart = bodyPart;
+                lastPath.painLevel = painLevel;
+            }
+            return updated;
+        });
+    };
+
+    const handleUndo = () => {
+        if (historyIndex > 0) {
+            setHistoryIndex(historyIndex - 1);
+            setDrawingPaths(drawingHistory[historyIndex - 1] || []);
+        }
+    };
+
+    const handleRedo = () => {
+        if (historyIndex < drawingHistory.length - 1) {
+            setHistoryIndex(historyIndex + 1);
+            setDrawingPaths(drawingHistory[historyIndex + 1]);
+        }
+    };
 
     if (!permission) {
         return (
@@ -173,66 +241,85 @@ export default function SessionScreen() {
         <View style={styles.container}>
             <StatusBar style="light" />
 
-            {/* Camera */}
-            {permission?.granted && tfReady && useRealTracking ? (
-                <TensorCamera
-                    style={styles.camera}
-                    type={'back'}
-                    cameraTextureHeight={1920}
-                    cameraTextureWidth={1080}
-                    resizeHeight={480}
-                    resizeWidth={640}
-                    resizeDepth={3}
-                    autorender={true}
-                    useCustomShadersToResize={false}
-                    onReady={handleCameraStream}
-                    testID="tensor-camera-view"
-                />
+            {/* Camera or Walking Animation */}
+            {cameraEnabled ? (
+                permission?.granted ? (
+                    <>
+                        {/* Always show camera feed */}
+                        <CameraView
+                            style={styles.camera}
+                            facing={cameraType}
+                            mode="video"
+                            testID="camera-view"
+                        />
+                        {/* TensorFlow processing overlay if ready */}
+                        {tfReady && (
+                            <TensorCamera
+                                style={styles.tensorCameraOverlay}
+                                facing={cameraType}
+                                cameraTextureHeight={1920}
+                                cameraTextureWidth={1080}
+                                resizeHeight={480}
+                                resizeWidth={640}
+                                resizeDepth={3}
+                                autorender={false}
+                                useCustomShadersToResize={false}
+                                onReady={(images, updatePreview, gl) => {
+                                    // Handle both pose detection and segmentation
+                                    handleCameraStream(images, updatePreview, gl);
+                                    handleSegmentationStream(images);
+                                }}
+                                testID="tensor-camera-view"
+                            />
+                        )}
+                    </>
+                ) : (
+                    <View style={styles.camera}>
+                        <Text style={styles.permissionText}>Camera permission required</Text>
+                    </View>
+                )
             ) : (
-                <CameraView
-                    style={styles.camera}
-                    facing={cameraType}
-                    testID="camera-view"
-                />
+                <View style={styles.walkingAnimationContainer}>
+                    <View style={styles.walkingAnimationBackground}>
+                        <Skeleton3D 
+                            onBodyPartPress={handleBodyPartSelect}
+                            selectedPart={selectedBodyPart}
+                            showNodes={showNodes}
+                            isDrawingMode={isDrawingMode}
+                            drawingPoints={drawingPaths.flatMap(path => path.points)}
+                            onPainLevelSelect={handlePainLevelSelect}
+                        />
+                    </View>
+                </View>
             )}
 
-            {/* Overlays */}
-            {visualizationMode === 'muscles' && (
+            {/* Drawing Overlay for both camera and skeleton modes */}
+            <DrawingOverlay
+                isDrawingMode={isDrawingMode}
+                onDrawingComplete={handleDrawingComplete}
+                drawings={drawingPaths}
+            />
+
+            {/* Overlays for camera mode */}
+            {cameraEnabled && visualizationMode === 'muscles' && (
                 <PoseOverlay
-                    poses={useRealTracking ? poses : [generateDemoPose()]}
-                    useRealTracking={useRealTracking}
+                    poses={poses}
+                    useRealTracking={true}
                     mode="muscles"
                     style={styles.poseOverlay}
                 />
             )}
 
-            {visualizationMode === 'bodyParts' && (
+            {cameraEnabled && visualizationMode === 'bodyParts' && (
                 <BodyPartMask
-                    poses={useRealTracking ? poses : [generateDemoPose()]}
+                    poses={poses}
                     mode={currentDepth}
                     showLabels={showLabels}
                     style={styles.bodyMask}
                 />
             )}
 
-            {/* Drawing Canvas */}
-            <View style={styles.drawingCanvas} {...panResponder.panHandlers} pointerEvents="box-none">
-                {drawingPoints.map((point, index) => (
-                    <View
-                        key={index}
-                        style={[
-                            styles.drawingPoint,
-                            {
-                                left: point.x - 2,
-                                top: point.y - 2,
-                                backgroundColor: currentDepth === 'skin' ? colors.accent :
-                                               currentDepth === 'muscle' ? colors.secondary :
-                                               colors.primary
-                            }
-                        ]}
-                    />
-                ))}
-            </View>
+            {/* Drawing Canvas - REMOVED - replaced with DrawingOverlay */}
 
             {/* Status Indicators */}
             {visualizationMode !== 'none' && (
@@ -243,7 +330,7 @@ export default function SessionScreen() {
                 </View>
             )}
 
-            {useRealTracking && (
+            {cameraEnabled && (
                 <View style={styles.statusIndicator}>
                     <Text style={styles.statusText}>
                         {!tfReady ? '🔄 Loading TensorFlow...' :
@@ -254,94 +341,100 @@ export default function SessionScreen() {
                 </View>
             )}
 
-            {/* Top Controls */}
+            {selectedBodyPart && (
+                <View style={styles.bodyPartIndicator}>
+                    <Text style={styles.bodyPartText}>Selected: {selectedBodyPart}</Text>
+                </View>
+            )}
+
+            {/* Enhanced Top Bar */}
+            <View style={styles.topBarBackground} />
             <SafeAreaView style={styles.topbar}>
                 <View style={styles.topbarContent}>
-                    <Pressable style={styles.controlButton} onPress={() => router.back()}>
-                        <ArrowUpDown size={20} color={colors.text} />
-                        <Text style={styles.controlButtonText}>Back</Text>
+                    <Pressable 
+                        style={[styles.backButton, chatVisible && styles.backButtonActive]} 
+                        onPress={() => setChatVisible(!chatVisible)}
+                    >
+                        {chatVisible ? (
+                            <EyeOff size={20} color={chatVisible ? colors.background : colors.text} />
+                        ) : (
+                            <Eye size={20} color={colors.text} />
+                        )}
+                        <Text style={[styles.backButtonText, chatVisible && styles.backButtonTextActive]}>
+                            {chatVisible ? 'Hide Chat' : 'Show Chat'}
+                        </Text>
                     </Pressable>
 
                     <View style={styles.centerControls}>
                         <Pressable
-                            style={[styles.mainButton, visualizationMode !== 'none' && styles.mainButtonActive]}
-                            onPress={handleVisualizationCycle}
+                            style={[styles.controlIcon, showNodes && styles.controlIconActive]}
+                            onPress={() => setShowNodes(!showNodes)}
                         >
-                            <Eye size={24} color={visualizationMode !== 'none' ? colors.background : colors.text} />
-                            <Text style={[styles.mainButtonText, visualizationMode !== 'none' && styles.mainButtonTextActive]}>
-                                {visualizationMode === 'none' ? 'V' : 
-                                 visualizationMode === 'muscles' ? 'M' : 'B'}
-                            </Text>
+                            <Circle size={22} color={showNodes ? colors.background : colors.text} />
                         </Pressable>
 
                         <Pressable
-                            style={[styles.mainButton, useRealTracking && styles.mainButtonActive]}
-                            onPress={handleTrackingToggle}
+                            style={[styles.controlIcon, isDrawingMode && styles.controlIconActive]}
+                            onPress={() => setIsDrawingMode(!isDrawingMode)}
                         >
-                            <RotateCcw size={24} color={useRealTracking ? colors.background : colors.text} />
-                            <Text style={[styles.mainButtonText, useRealTracking && styles.mainButtonTextActive]}>
-                                {useRealTracking ? 'R' : 'D'}
-                            </Text>
+                            <Edit3 size={22} color={isDrawingMode ? colors.background : colors.text} />
+                        </Pressable>
+
+                        <Pressable
+                            style={[styles.controlIcon, cameraEnabled && styles.controlIconActive]}
+                            onPress={handleCameraToggle}
+                        >
+                            {cameraEnabled ? (
+                                <Camera size={22} color={colors.background} />
+                            ) : (
+                                <CameraOff size={22} color={colors.text} />
+                            )}
+                        </Pressable>
+
+                        <Pressable
+                            style={styles.checkButton}
+                            onPress={handleCheckAction}
+                        >
+                            <CheckCircle size={22} color={colors.primary} />
                         </Pressable>
                     </View>
 
-                    <Pressable
-                        style={[styles.controlButton, micEnabled && styles.controlButtonActive]}
-                        onPress={handleMicToggle}
-                    >
-                        {micEnabled ? (
-                            <Mic size={20} color={colors.background} />
-                        ) : (
-                            <MicOff size={20} color={colors.text} />
-                        )}
-                        <Text style={[styles.controlButtonText, micEnabled && styles.controlButtonTextActive]}>
-                            Mic
-                        </Text>
-                    </Pressable>
+                    <View style={styles.rightControls}>
+                        <Pressable
+                            style={[styles.controlIcon, historyIndex <= 0 && styles.controlIconDisabled]}
+                            onPress={handleUndo}
+                            disabled={historyIndex <= 0}
+                        >
+                            <Undo size={20} color={historyIndex <= 0 ? colors.textSecondary : colors.text} />
+                        </Pressable>
+
+                        <Pressable
+                            style={[styles.controlIcon, historyIndex >= drawingHistory.length - 1 && styles.controlIconDisabled]}
+                            onPress={handleRedo}
+                            disabled={historyIndex >= drawingHistory.length - 1}
+                        >
+                            <Redo size={20} color={historyIndex >= drawingHistory.length - 1 ? colors.textSecondary : colors.text} />
+                        </Pressable>
+                    </View>
                 </View>
             </SafeAreaView>
 
             {/* Bottom Controls */}
             <SafeAreaView style={styles.bottombar}>
                 <View style={styles.bottombarContent}>
-                    <View style={styles.depthControls}>
-                        <Pressable style={styles.depthButton} onPress={handleDepthDown}>
-                            <RotateCcw size={16} color={colors.text} />
-                        </Pressable>
-                        
-                        <DepthToggle 
-                            currentDepth={currentDepth}
-                            onDepthChange={setCurrentDepth}
-                        />
-                        
-                        <Pressable style={styles.depthButton} onPress={handleDepthUp}>
-                            <RotateCw size={16} color={colors.text} />
-                        </Pressable>
-                    </View>
-
-                    <Pressable
-                        style={[styles.chatToggleButton, chatVisible && styles.chatToggleActive]}
-                        onPress={() => setChatVisible(!chatVisible)}
-                    >
-                        <Text style={[styles.chatToggleText, chatVisible && styles.chatToggleTextActive]}>
-                            Chat
-                        </Text>
-                        {chatVisible ? (
-                            <EyeOff size={16} color={colors.background} />
-                        ) : (
-                            <Eye size={16} color={colors.text} />
-                        )}
-                    </Pressable>
+                    {/* Removed depth controls - keeping bottom bar for future controls */}
                 </View>
             </SafeAreaView>
 
-            {/* Chat */}
+            {/* Chat with topmost z-index */}
             {chatVisible && (
                 <ChatOverlay
                     messages={currentThread?.messages || []}
                     visible={chatVisible}
                     onSendMessage={handleSendMessage}
                     isLoading={isLoadingMessage}
+                    micEnabled={micEnabled}
+                    onToggleMic={handleMicToggle}
                 />
             )}
         </View>
@@ -357,6 +450,14 @@ const styles = StyleSheet.create({
     },
     camera: {
         flex: 1,
+    },
+    tensorCameraOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        opacity: 0, // Hidden but processing
     },
     permissionText: {
         textAlign: 'center',
@@ -442,7 +543,7 @@ const styles = StyleSheet.create({
         top: 0,
         left: 0,
         right: 0,
-        zIndex: 10,
+        zIndex: 2000, // Highest z-index to ensure buttons are always accessible
     },
     topbarContent: {
         flexDirection: 'row',
@@ -539,5 +640,114 @@ const styles = StyleSheet.create({
     },
     chatToggleTextActive: {
         color: colors.background,
+    },
+    // New styles for enhanced UI
+    walkingAnimationContainer: {
+        flex: 1,
+        backgroundColor: colors.background,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    walkingAnimationBackground: {
+        width: SCREEN_WIDTH * 0.95,
+        height: SCREEN_HEIGHT * 0.8,
+        backgroundColor: colors.surface,
+        borderRadius: borderRadius.xl,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: colors.primary,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 10,
+        // Gradient-like border effect
+        borderWidth: 2,
+        borderColor: colors.gradientStart,
+    },
+    bodyPartIndicator: {
+        position: 'absolute',
+        top: 120,
+        left: 20,
+        right: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    bodyPartText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    topBarBackground: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 100,
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        zIndex: 1999, // Just below the topbar but above chat
+    },
+    backButton: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: borderRadius.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    backButtonText: {
+        color: colors.background,
+        fontSize: fontSize.md,
+        fontWeight: '600',
+    },
+    backButtonActive: {
+        backgroundColor: colors.primary,
+    },
+    backButtonTextActive: {
+        color: colors.background,
+    },
+    controlIcon: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    controlIconActive: {
+        backgroundColor: colors.primary,
+    },
+    controlIconDisabled: {
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        opacity: 0.5,
+    },
+    checkButton: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    rightControls: {
+        width: 80, // Balance the layout
     },
 });

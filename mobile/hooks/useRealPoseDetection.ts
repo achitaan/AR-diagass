@@ -3,11 +3,14 @@ import { Dimensions, Platform } from 'react-native';
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-react-native';
 import * as poseDetection from '@tensorflow-models/pose-detection';
-import { Camera } from 'expo-camera';
+import { CameraView } from 'expo-camera';
 import { cameraWithTensors } from '@tensorflow/tfjs-react-native';
 
+// Create TensorCamera component using CameraView
+const TensorCameraComponent = cameraWithTensors(CameraView);
+
 // Expose TensorCamera for use in other components
-export const TensorCamera = cameraWithTensors(Camera);
+export { TensorCameraComponent as TensorCamera };
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -184,33 +187,37 @@ export function useRealPoseDetection() {
     const centerX = SCREEN_WIDTH / 2;
     const centerY = SCREEN_HEIGHT / 2;
     
-    // Generate realistic demo keypoints with subtle movement
+    // Walking animation parameters
+    const walkCycle = Math.sin(time * 2) * 0.3; // Walking cycle
+    const armSwing = Math.sin(time * 2) * 15; // Arm swing
+    const legLift = Math.abs(Math.sin(time * 2)) * 8; // Leg lift for walking
+    
+    // Generate realistic demo keypoints with walking animation
     const demoPositions: { [key: string]: { x: number; y: number } } = {
       'nose': { x: centerX, y: centerY - 80 },
       'left_shoulder': { x: centerX - 60, y: centerY - 40 },
       'right_shoulder': { x: centerX + 60, y: centerY - 40 },
-      'left_elbow': { x: centerX - 80, y: centerY },
-      'right_elbow': { x: centerX + 80, y: centerY },
-      'left_wrist': { x: centerX - 100, y: centerY + 20 },
-      'right_wrist': { x: centerX + 100, y: centerY + 20 },
+      'left_elbow': { x: centerX - 80 + armSwing, y: centerY },
+      'right_elbow': { x: centerX + 80 - armSwing, y: centerY },
+      'left_wrist': { x: centerX - 100 + armSwing * 1.5, y: centerY + 20 },
+      'right_wrist': { x: centerX + 100 - armSwing * 1.5, y: centerY + 20 },
       'left_hip': { x: centerX - 40, y: centerY + 60 },
       'right_hip': { x: centerX + 40, y: centerY + 60 },
-      'left_knee': { x: centerX - 45, y: centerY + 120 },
-      'right_knee': { x: centerX + 45, y: centerY + 120 },
-      'left_ankle': { x: centerX - 50, y: centerY + 180 },
-      'right_ankle': { x: centerX + 50, y: centerY + 180 }
+      'left_knee': { x: centerX - 45 + walkCycle * 5, y: centerY + 120 - legLift },
+      'right_knee': { x: centerX + 45 - walkCycle * 5, y: centerY + 120 - legLift * 0.5 },
+      'left_ankle': { x: centerX - 50 + walkCycle * 8, y: centerY + 180 - legLift * 1.5 },
+      'right_ankle': { x: centerX + 50 - walkCycle * 8, y: centerY + 180 - legLift * 0.3 }
     };
 
     const demoKeypoints: RealKeypoint[] = POSE_KEYPOINTS.map((name, index) => {
       const basePos = demoPositions[name] || { x: centerX, y: centerY };
       
-      // Add subtle breathing/movement animation
-      const sway = Math.sin(time * 0.5) * 3;
-      const breathe = Math.sin(time * 2) * 2;
+      // Add subtle breathing animation
+      const breathe = Math.sin(time * 1.5) * 1;
       
       return {
         name,
-        x: basePos.x + sway,
+        x: basePos.x,
         y: basePos.y + breathe,
         score: 0.9
       };
@@ -231,8 +238,6 @@ export function useRealPoseDetection() {
     startTracking,
     stopTracking,
     handleCameraStream,
-    generateDemoPose,
-    // Expose TensorCamera for components to use
-    TensorCamera
+    generateDemoPose
   };
 }
