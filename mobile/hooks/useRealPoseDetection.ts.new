@@ -1,0 +1,215 @@
+import { useState, useEffect, useRef } from 'react';
+import { Dimensions, Platform } from 'react-native';
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-react-native';
+import * as poseDetection from '@tensorflow-models/pose-detection';
+import { Camera } from 'expo-camera';
+import { cameraWithTensors } from '@tensorflow/tfjs-react-native';
+
+// Expose TensorCamera for use in other components
+export const TensorCamera = cameraWithTensors(Camera);
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Simple pose interface - matching existing app interface
+export interface RealKeypoint {
+  name: string;
+  x: number;
+  y: number;
+  score: number;
+}
+
+export interface RealPose {
+  keypoints: RealKeypoint[];
+  score: number;
+}
+
+// Define keypoint names for MoveNet/PoseNet compatibility
+const POSE_KEYPOINTS = [
+  'nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+  'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+  'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+  'left_knee', 'right_knee', 'left_ankle', 'right_ankle'
+];
+
+export function useRealPoseDetection() {
+  const [poses, setPoses] = useState<RealPose[]>([]);
+  const [detector, setDetector] = useState<poseDetection.PoseDetector | null>(null);
+  const [isModelReady, setIsModelReady] = useState(false);
+  const [tfReady, setTfReady] = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
+  const [movementIntensity, setMovementIntensity] = useState(0);
+  const processingRef = useRef(false);
+  const requestAnimationFrameId = useRef<number | null>(null);
+  const previousKeypointsRef = useRef<RealKeypoint[]>([]);
+
+  // Initialize TensorFlow and pose detection model
+  useEffect(() => {
+    const initializeTf = async () => {
+      try {
+        // Initialize TensorFlow backend
+        console.log('🔄 Initializing TensorFlow...');
+        await tf.ready();
+        setTfReady(true);
+        console.log('✅ TensorFlow ready');
+
+        // Load MoveNet model (optimized for mobile)
+        console.log('🔄 Loading MoveNet model...');
+        const model = poseDetection.SupportedModels.MoveNet;
+        const detectorConfig: poseDetection.MoveNetModelConfig = {
+          modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+          enableSmoothing: true,
+          minPoseScore: 0.25
+        };
+        
+        const detector = await poseDetection.createDetector(model, detectorConfig);
+        setDetector(detector);
+        setIsModelReady(true);
+        console.log('✅ Pose detector ready - REAL detection active');
+      } catch (error) {
+        console.error('❌ Error initializing TensorFlow or loading model:', error);
+      }
+    };
+
+    initializeTf();
+
+    return () => {
+      // Cleanup
+      if (requestAnimationFrameId.current) {
+        cancelAnimationFrame(requestAnimationFrameId.current);
+        requestAnimationFrameId.current = null;
+      }
+      stopTracking();
+    };
+  }, []);
+
+  // Process incoming camera tensors for pose detection
+  const handleCameraStream = (images: IterableIterator<tf.Tensor3D>) => {
+    if (!isTracking || !isModelReady || !detector) return;
+    
+    const detectPose = async () => {
+      if (processingRef.current || !detector) {
+        requestAnimationFrameId.current = requestAnimationFrame(() => detectPose());
+        return;
+      }
+
+      processingRef.current = true;
+      
+      try {
+        const imageTensor = images.next().value;
+        
+        if (imageTensor) {
+          // Get pose estimates from the model
+          const estimatedPoses = await detector.estimatePoses(imageTensor);
+          
+          if (estimatedPoses && estimatedPoses.length > 0) {
+            // Map the pose to our app's format
+            const detectedPose = estimatedPoses[0];
+            const mappedKeypoints = detectedPose.keypoints.map(kp => ({
+              name: kp.name || '',
+              x: kp.x,
+              y: kp.y,
+              score: kp.score || 0
+            }));
+
+            // Calculate movement intensity by comparing with previous frame
+            const intensity = calculateMovementIntensity(mappedKeypoints, previousKeypointsRef.current);
+            setMovementIntensity(intensity);
+            previousKeypointsRef.current = mappedKeypoints;
+
+            const pose: RealPose = {
+              keypoints: mappedKeypoints,
+              score: detectedPose.score || 0
+            };
+            
+            setPoses([pose]);
+          } else {
+            // No person detected
+            setPoses([]);
+          }
+          
+          // Clean up tensor to avoid memory leaks
+          tf.dispose(imageTensor);
+        }
+      } catch (error) {
+        console.error('Error during pose detection:', error);
+      } finally {
+        processingRef.current = false;
+        if (isTracking) {
+          // Continue detection loop if still tracking
+          requestAnimationFrameId.current = requestAnimationFrame(() => detectPose());
+        }
+      }
+    };
+
+    // Start detection loop
+    detectPose();
+  };
+
+  // Calculate how much movement occurred between frames
+  const calculateMovementIntensity = (
+    currentKeypoints: RealKeypoint[], 
+    previousKeypoints: RealKeypoint[]
+  ): number => {
+    if (previousKeypoints.length === 0) return 0.5; // Default value for first frame
+
+    // Calculate average movement of key points
+    let totalMovement = 0;
+    let pointCount = 0;
+    
+    currentKeypoints.forEach(current => {
+      const previous = previousKeypoints.find(p => p.name === current.name);
+      if (previous && current.score > 0.5) {
+        // Calculate Euclidean distance
+        const dx = current.x - previous.x;
+        const dy = current.y - previous.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        totalMovement += distance;
+        pointCount++;
+      }
+    });
+    
+    // Normalize movement (0-1 scale)
+    if (pointCount === 0) return 0;
+    const averageMovement = totalMovement / pointCount;
+    
+    // Scale movement to 0-1 range (assuming max movement is ~50px)
+    return Math.min(1, averageMovement / 50);
+  };
+
+  // Start human detection tracking
+  const startTracking = () => {
+    if (!isModelReady) {
+      console.log('⚠️ Model not ready yet');
+      return;
+    }
+    
+    console.log('▶️ Starting real human detection tracking...');
+    setIsTracking(true);
+    previousKeypointsRef.current = [];
+  };
+
+  // Stop human detection tracking
+  const stopTracking = () => {
+    console.log('⏹️ Stopping human detection tracking...');
+    setIsTracking(false);
+    
+    if (requestAnimationFrameId.current) {
+      cancelAnimationFrame(requestAnimationFrameId.current);
+      requestAnimationFrameId.current = null;
+    }
+    
+    setPoses([]);
+  };
+
+  return {
+    poses,
+    isModelReady,
+    tfReady,
+    isTracking,
+    handleCameraStream,
+    startTracking,
+    stopTracking
+  };
+}

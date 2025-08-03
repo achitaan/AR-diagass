@@ -5,13 +5,27 @@
  * including chat messages, authentication, and health checks.
  */
 
+import { Platform } from 'react-native';
 import { Message } from '@/types/thread';
 
-// Configuration - Update these based on your backend setup
-// For Android emulator, use 10.0.2.2 instead of localhost
-const API_BASE_URL = 'http://10.0.2.2:8000';  // Android emulator compatible URL
+// Platform-specific API configuration
+const getApiBaseUrl = () => {
+  if (__DEV__) {
+    // Development mode - use platform-specific URLs
+    if (Platform.OS === 'android') {
+      return process.env.EXPO_PUBLIC_API_URL_ANDROID || 'http://10.0.2.2:8000';  // Android emulator
+    } else if (Platform.OS === 'ios') {
+      return process.env.EXPO_PUBLIC_API_URL_IOS || 'http://localhost:8000';  // iOS simulator
+    } else {
+      return process.env.EXPO_PUBLIC_API_URL_WEB || 'http://localhost:8000';  // Web
+    }
+  }
+  // Production mode - use production URL
+  return process.env.EXPO_PUBLIC_API_URL_PRODUCTION || 'https://your-production-api.com';
+};
 
-const AUTH_TOKEN = 'dev-token';  // This should match DEV_TOKEN in backend
+const API_BASE_URL = getApiBaseUrl();
+const AUTH_TOKEN = process.env.EXPO_PUBLIC_DEV_TOKEN || 'dev-token';
 
 // Generate proper UUID v4 format
 const generateUUID = () => {
@@ -58,19 +72,37 @@ class ApiService {
       }
       
       console.log('🚀 Sending message to backend:', requestPayload);
+      console.log('📡 API Base URL:', this.baseUrl);
+      console.log('🎯 Full endpoint:', `${this.baseUrl}/chat/simple`);
       
       const response = await fetch(`${this.baseUrl}/chat/simple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // 'Authorization': `Bearer ${this.authToken}`,
+          'Authorization': `Bearer ${this.authToken}`, // Re-enable auth header
         },
         body: JSON.stringify(requestPayload),
       });
 
+      console.log('📨 Response status:', response.status);
+      console.log('📨 Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        const errorData: ApiError = await response.json();
-        throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Unknown error'}`);
+        console.log('❌ Response not OK, attempting to parse error...');
+        
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        
+        try {
+          const errorData: ApiError = await response.json();
+          errorMessage = `HTTP ${response.status}: ${errorData.detail || response.statusText}`;
+        } catch (parseError) {
+          console.log('⚠️ Could not parse error response as JSON');
+          const errorText = await response.text();
+          console.log('📄 Raw error response:', errorText);
+          errorMessage = `HTTP ${response.status}: ${response.statusText} - ${errorText}`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data: ChatResponse = await response.json();
@@ -103,20 +135,36 @@ class ApiService {
   async checkHealth(): Promise<boolean> {
     try {
       console.log('🏥 Checking backend health...');
+      console.log('🎯 Health endpoint:', `${this.baseUrl}/health`);
       
       const response = await fetch(`${this.baseUrl}/health`, {
         method: 'GET',
         headers: {
-          // 'Authorization': `Bearer ${this.authToken}`,
+          'Authorization': `Bearer ${this.authToken}`, // Re-enable auth
         },
       });
 
-      const isHealthy = response.ok;
-      console.log(isHealthy ? '✅ Backend is healthy' : '❌ Backend health check failed');
-      return isHealthy;
+      console.log('🏥 Health check status:', response.status);
+      
+      if (response.ok) {
+        const healthData = await response.text();
+        console.log('✅ Backend is healthy:', healthData);
+        return true;
+      } else {
+        console.log('❌ Backend health check failed with status:', response.status);
+        return false;
+      }
       
     } catch (error) {
       console.error('❌ Health check failed:', error);
+      
+      if (error instanceof TypeError) {
+        console.error('💡 This is likely a network connectivity issue. Check if:');
+        console.error('   - Backend server is running');
+        console.error('   - API URL is correct:', this.baseUrl);
+        console.error('   - Network connectivity is available');
+      }
+      
       return false;
     }
   }
