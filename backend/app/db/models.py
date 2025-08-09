@@ -17,9 +17,9 @@ from sqlmodel import Field, Relationship, SQLModel
 
 class MessageRole(str, Enum):
     """Enumeration for message roles in conversations."""
-    SYSTEM = "system"
-    USER = "user"
-    ASSISTANT = "assistant"
+    SYSTEM = "SYSTEM"
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
 
 
 class Thread(SQLModel, table=True):

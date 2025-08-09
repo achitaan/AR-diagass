@@ -1,22 +1,84 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
     StyleSheet,
     View,
     Text,
-    ScrollView
+    ScrollView,
+    Animated
 } from 'react-native';
 import { Message } from '@/types/thread';
 import { colors } from '@/constants/colors';
 import { borderRadius, fontSize, spacing } from '@/constants/theme';
+import { ChatInput } from './ChatInput';
 
 interface ChatOverlayProps {
     messages: Message[];
     visible: boolean;
     onSendMessage?: (message: string) => void;
+    messageStyle?: object;
+    micEnabled?: boolean;
+    onToggleMic?: () => void;
+    isLoading?: boolean;
 }
 
-export const ChatOverlay = ({ messages, visible, onSendMessage }: ChatOverlayProps) => {
+export const ChatOverlay = ({ messages, visible, onSendMessage, messageStyle, micEnabled, onToggleMic, isLoading }: ChatOverlayProps) => {
     const scrollViewRef = useRef<ScrollView>(null);
+
+    // Auto-scroll when loading state changes
+    useEffect(() => {
+        if (isLoading && scrollViewRef.current) {
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+        }
+    }, [isLoading]);
+
+    // Typing indicator animation
+    const TypingIndicator = () => {
+        const [dot1] = useState(new Animated.Value(0));
+        const [dot2] = useState(new Animated.Value(0));
+        const [dot3] = useState(new Animated.Value(0));
+
+        useEffect(() => {
+            const animate = () => {
+                const animation = Animated.loop(
+                    Animated.sequence([
+                        Animated.timing(dot1, { toValue: 1, duration: 400, useNativeDriver: true }),
+                        Animated.timing(dot2, { toValue: 1, duration: 400, useNativeDriver: true }),
+                        Animated.timing(dot3, { toValue: 1, duration: 400, useNativeDriver: true }),
+                        Animated.parallel([
+                            Animated.timing(dot1, { toValue: 0, duration: 400, useNativeDriver: true }),
+                            Animated.timing(dot2, { toValue: 0, duration: 400, useNativeDriver: true }),
+                            Animated.timing(dot3, { toValue: 0, duration: 400, useNativeDriver: true }),
+                        ])
+                    ])
+                );
+                animation.start();
+                return animation;
+            };
+
+            const animation = animate();
+            return () => animation.stop();
+        }, []);
+
+        return (
+            <View style={[
+                styles.messageBubble,
+                styles.systemMessage,
+                styles.typingContainer,
+                typeof messageStyle === 'object' ? messageStyle : null
+            ]}>
+                <View style={styles.typingDots}>
+                    <Animated.View style={[styles.dot, { opacity: dot1 }]} />
+                    <Animated.View style={[styles.dot, { opacity: dot2 }]} />
+                    <Animated.View style={[styles.dot, { opacity: dot3 }]} />
+                </View>
+                <Text style={[styles.messageText, styles.typingText]}>
+                    {messages.length === 0 ? 'AI is analyzing your condition...' : 'AI is thinking...'}
+                </Text>
+            </View>
+        );
+    };
 
     if (!visible) {
         return null;
@@ -33,65 +95,46 @@ export const ChatOverlay = ({ messages, visible, onSendMessage }: ChatOverlayPro
                 contentContainerStyle={styles.messagesContent}
                 showsVerticalScrollIndicator={false}
                 onContentSizeChange={() => {
-                    if (scrollViewRef.current && messages.length > 0) {
+                    if (scrollViewRef.current && (messages.length > 0 || isLoading)) {
                         scrollViewRef.current.scrollToEnd({ animated: true });
                     }
                 }}
             >
                 {messages.length > 0 ? (
-                    messages.map((message) => (
-                        <View
-                            key={message.id}
-                            style={[
-                                styles.messageBubble,
-                                message.isUser ? styles.userMessage : styles.systemMessage
-                            ]}
-                            testID={`message-${message.id}`}
-                        >
-                            <Text style={styles.messageText}>{message.content}</Text>
-                        </View>
-                    ))
-                ) : (
-                    // Placeholder messages when no real messages exist
                     <>
-                        <View style={[styles.messageBubble, styles.systemMessage, styles.placeholderMessage]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                I can see you&apos;re pointing to your shoulder area. Can you describe the type of pain you&apos;re experiencing?
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.userMessage, styles.placeholderMessage]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                It&apos;s a sharp pain that gets worse when I lift my arm
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.systemMessage, styles.placeholderMessage]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                That sounds like it could be related to your rotator cuff. How long have you been experiencing this pain?
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.userMessage, styles.placeholderMessage]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                About two weeks now, started after I went to the gym
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.systemMessage, styles.placeholderMessage]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                I see. Try marking the exact areas where you feel the pain on the camera view. This will help me better understand your condition.
-                            </Text>
-                        </View>
-
-                        <View style={[styles.messageBubble, styles.userMessage, styles.placeholderMessage]}>
-                            <Text style={[styles.messageText, styles.placeholderText]}>
-                                Okay, I&apos;ll trace the painful areas now
-                            </Text>
-                        </View>
+                        {messages.map((message) => (
+                            <View
+                                key={message.id}
+                                style={[
+                                    styles.messageBubble,
+                                    message.isUser ? styles.userMessage : styles.systemMessage,
+                                    // Apply custom message style if provided
+                                    typeof messageStyle === 'object' ? messageStyle : null
+                                ]}
+                                testID={`message-${message.id}`}
+                            >
+                                <Text style={styles.messageText}>{message.content}</Text>
+                            </View>
+                        ))}
+                        {isLoading && <TypingIndicator />}
                     </>
+                ) : (
+                    // Welcome message when no messages exist
+                    <View style={[styles.messageBubble, styles.systemMessage, messageStyle]}>
+                        <Text style={styles.messageText}>
+                            Hello! I'm here to help you understand your pain and discomfort. Draw areas on the body where you feel pain, and I'll ask relevant questions to better assist you.
+                        </Text>
+                    </View>
                 )}
             </ScrollView>
+            {/* Chat Input at the bottom */}
+            <ChatInput
+                onSendMessage={onSendMessage || (() => { })}
+                placeholder="Describe your pain or ask a question..."
+                micEnabled={micEnabled}
+                onToggleMic={onToggleMic}
+                disabled={isLoading}
+            />
         </View>
     );
 };
@@ -103,19 +146,21 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'transparent',
+        backgroundColor: 'rgba(0, 0, 0, 0.05)', // Very subtle overlay
         justifyContent: 'flex-start',
         pointerEvents: 'box-none', // Allow touches to pass through to camera
+        flexDirection: 'column',
+        zIndex: 1500, // Below top bar (2000) but above other content
     },
     messagesContainer: {
         flex: 1,
-        paddingTop: 60, // Minimal top padding for status bar
+        paddingTop: 20, // Reduced padding
         pointerEvents: 'auto', // Enable scrolling within messages
     },
     messagesContent: {
         padding: spacing.md,
-        paddingBottom: 200, // Extra bottom padding to avoid controls
-        paddingTop: spacing.lg, // Extra top padding to avoid top controls
+        paddingBottom: spacing.xl, // Space for input
+        paddingTop: spacing.sm, // Reduced top padding
         minHeight: '100%',
         justifyContent: 'flex-start',
     },
@@ -146,5 +191,25 @@ const styles = StyleSheet.create({
     },
     placeholderText: {
         fontStyle: 'italic',
+    },
+    typingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    typingDots: {
+        flexDirection: 'row',
+        marginRight: spacing.sm,
+    },
+    dot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#fff',
+        marginHorizontal: 2,
+    },
+    typingText: {
+        fontSize: fontSize.sm,
+        fontStyle: 'italic',
+        opacity: 0.8,
     },
 });

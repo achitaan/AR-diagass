@@ -21,7 +21,7 @@ from langchain_openai import OpenAIEmbeddings
 from sqlmodel import select
 
 from app.db.core import AsyncSessionLocal
-from app.db.models import Message, Embedding, Thread
+from app.db.models import Message, Embedding, Thread, MessageRole
 from app.settings import settings
 
 
@@ -86,7 +86,7 @@ class DocumentIngestionService:
                 message = Message(
                     id=message_id,
                     thread_id=thread_id,
-                    role="system",  # Knowledge base content is system role
+                    role=MessageRole.SYSTEM,  # Knowledge base content is system role
                     content=chunk.page_content,
                     created_at=datetime.utcnow()
                 )
@@ -179,7 +179,7 @@ Last Updated: {guideline.get('last_updated', 'Unknown')}
                     message = Message(
                         id=message_id,
                         thread_id=thread_id,
-                        role="system",
+                        role=MessageRole.SYSTEM,
                         content=chunk,
                         created_at=datetime.utcnow()
                     )
@@ -229,7 +229,7 @@ Last Updated: {guideline.get('last_updated', 'Unknown')}
         async with AsyncSessionLocal() as session:
             # Count system messages (knowledge base entries)
             system_messages_result = await session.exec(
-                select(Message).where(Message.role == "system")
+                select(Message).where(Message.role == MessageRole.SYSTEM)
             )
             system_messages = system_messages_result.all()
             
