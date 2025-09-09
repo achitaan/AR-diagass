@@ -12,7 +12,7 @@ PainAR is a mobile AR application that enables patients to map, visualize, and t
 ---
 
 ## Video Demonstration
-[!https://youtu.be/iXp7AocvTy0](https://youtu.be/iXp7AocvTy0)
+[https://youtu.be/iXp7AocvTy0](https://youtu.be/iXp7AocvTy0)
 
 ---
 
