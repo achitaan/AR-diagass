@@ -9,6 +9,12 @@ Built during a hackathon to help patients communicate pain more effectively with
 PainAR is a mobile AR application that enables patients to map, visualize, and track pain directly on their own body using augmented reality. Instead of struggling to describe pain verbally, users can overlay pain zones on a 3D body model, adjust intensity, and record pain history. This provides doctors with clearer, more structured insights into their patients’ conditions.
 
 ---
+---
+
+## Video Demonstration
+[](https://youtu.be/iXp7AocvTy0)
+
+---
 
 ## Features
 - AR pain mapping – overlay pain regions on the body with precise location tracking  
@@ -38,11 +44,6 @@ PainAR is a mobile AR application that enables patients to map, visualize, and t
 
 ## Inspiration
 Patients often struggle to describe pain clearly, which can delay diagnosis and treatment. Our team wanted to bridge the communication gap by using AR technology to create an intuitive, visual language for pain.  
-
----
-
-## Screenshots
-(Add your app screenshots, mockups, or demo GIFs here)
 
 ---
 
